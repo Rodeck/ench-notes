@@ -1,0 +1,14 @@
+# ench-notes API — appended to /opt/fitness/server/Caddyfile (additive only;
+# the hirdfit blocks above it are untouched). Same conventions as hirdfit:
+# HSTS at the TLS layer, /metrics blocked publicly, everything else proxied.
+ench-api.duckdns.org {
+	header Strict-Transport-Security "max-age=31536000"
+
+	handle /metrics* {
+		respond "Not found." 404
+	}
+
+	handle {
+		reverse_proxy ench-api:8787
+	}
+}

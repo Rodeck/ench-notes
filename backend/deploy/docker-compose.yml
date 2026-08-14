@@ -1,0 +1,51 @@
+# ench-notes API — lives at /opt/ench/server on the VPS as its own compose
+# project ("ench"), fully separate from the hirdfit stack at /opt/fitness.
+# It publishes no ports; the existing Caddy reverse-proxies to it over the
+# hirdfit project's network (server_default), which we join as external.
+#
+# IMPORTANT: the service/alias name must stay "ench-api" — hirdfit's Caddy
+# resolves its own upstream as "api" on this shared network, and a second
+# container answering to that alias would hijack hirdfit traffic.
+
+# Explicit project name: the hirdfit stack's compose project is also named
+# after its directory ("server"); without this, both projects would share the
+# name and see each other's containers as orphans.
+name: ench
+
+x-logging: &json-log
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  ench-api:
+    image: ench-api:latest
+    build: .
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 256
+    stop_grace_period: 15s
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/service-account.json
+    volumes:
+      - ./secrets/service-account.json:/secrets/service-account.json:ro
+    networks:
+      - proxy
+    logging: *json-log
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8787/healthz | grep -q '\"ok\":true'"]
+      interval: 60s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+networks:
+  proxy:
+    external: true
+    name: server_default
