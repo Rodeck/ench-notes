@@ -14,6 +14,30 @@ A web app for personal notes organized by **subject** (projects, lifestyle, …)
 
 Deferred: mobile apps, payments, Grafana metrics/logs (design keeps them easy to add).
 
+## Structure
+
+- `frontend/` — React + Vite + TypeScript SPA using the **Organic** design system (imported from the Claude Design project). Talks to Firebase Auth (Google + email/password) and Firestore directly.
+- `firebase.json`, `firestore.rules`, `firestore.indexes.json` — Firebase Hosting + Firestore config at the repo root.
+- Backend (MCP server, tag suggestions) lives on the VPS — not in this repo yet.
+
+## Development
+
+```bash
+cd frontend
+cp .env.example .env.local   # fill in your Firebase web app keys
+npm install
+npm run dev
+```
+
+Firebase setup (once per environment):
+
+1. Create a Firebase project, add a **web app**, and copy its config into `.env.local`.
+2. Enable **Authentication → Google** and **Email/Password** sign-in providers.
+3. Create a **Firestore** database and deploy the rules: `firebase deploy --only firestore:rules`.
+4. Hosting deploy: `npm run build` in `frontend/`, then `firebase deploy --only hosting`.
+
+Data lives under `users/{uid}`: `notes`, `subjects`, and `mcpClients` subcollections. The `premium` flag on the user doc is server-managed (set it from the Firebase console); Firestore rules prevent clients from flipping it.
+
 ## Docs
 
 - [App Visuals & MVP Design Brief](docs/design-brief.md)
