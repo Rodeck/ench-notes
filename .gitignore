@@ -5,6 +5,7 @@ node_modules/
 dist/
 build/
 .firebase/
+*.tsbuildinfo
 
 # Environment & secrets
 .env
