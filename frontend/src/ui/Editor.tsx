@@ -32,7 +32,16 @@ export function Editor({ uid, note, subjects, onDeleted, onToast }: Props) {
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pending = useRef<{ title: string; body: string } | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const noteId = note.id
+
+  // Size the textarea to its content so the whole pane scrolls as one surface.
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = '0px'
+    el.style.height = `${el.scrollHeight}px`
+  }, [body, mode, noteId])
 
   // Reset the draft when a different note opens; flush anything unsaved first.
   useEffect(() => {
@@ -252,6 +261,7 @@ export function Editor({ uid, note, subjects, onDeleted, onToast }: Props) {
 
           {mode === 'edit' ? (
             <textarea
+              ref={textareaRef}
               className="md-edit"
               placeholder="Write in markdown…"
               value={body}
