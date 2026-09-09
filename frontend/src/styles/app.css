@@ -43,8 +43,8 @@ button, a, label, [role="button"] { touch-action: manipulation; -webkit-tap-high
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--color-divider);
 }
-.topbar-brand { font-family: var(--font-heading); font-size: 15px; margin-right: 8px; }
-.topbar-brand em { color: var(--color-accent); font-style: normal; }
+.topbar-brand { display: inline-flex; align-items: center; margin-right: 8px; }
+.logo { display: block; flex: none; }
 .topbar-tabs { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--color-surface); }
 .tab-pill {
   border: 0; cursor: pointer; font: inherit; font-size: 13px;
@@ -441,11 +441,6 @@ button, a, label, [role="button"] { touch-action: manipulation; -webkit-tap-high
 .login-wrap { min-height: calc(100vh - var(--topbar-h)); min-height: calc(100dvh - var(--topbar-h)); display: grid; place-items: center; padding: var(--space-8); }
 .login-col { width: min(400px, 100%); display: flex; flex-direction: column; gap: var(--space-4); }
 .login-head { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; }
-.login-mark {
-  width: 54px; height: 54px; display: grid; place-items: center;
-  border-radius: 50%; background: var(--color-accent); color: var(--color-bg);
-  font-family: var(--font-heading); font-size: 24px;
-}
 .login-head h2 { margin: var(--space-2) 0 0; }
 .login-tag { margin: 0; font-size: 15px; color: color-mix(in srgb, var(--color-text) 60%, transparent); }
 .login-card { padding: var(--space-6); gap: var(--space-3); }

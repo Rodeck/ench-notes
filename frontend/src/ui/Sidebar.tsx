@@ -5,6 +5,7 @@ import { createSubject, createTodoList } from '../data/store'
 import { useAuth } from '../auth'
 import { ChevronRightIcon, CloseIcon, ListIcon, PlusIcon, SearchIcon, TableIcon } from './icons'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
+import { Logo } from './Logo'
 
 interface Props {
   uid: string
@@ -99,7 +100,7 @@ export function Sidebar({
     <aside className="sidebar">
       <div className="drawer-head">
         <span className="topbar-brand">
-          ench <em>notes</em>
+          <Logo />
         </span>
         <button className="btn btn-icon btn-secondary" aria-label="Close menu" onClick={onClose}>
           <CloseIcon />
