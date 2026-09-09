@@ -18,9 +18,60 @@ Deferred: mobile apps, payments, Grafana metrics/logs (design keeps them easy to
 
 - `frontend/` — React + Vite + TypeScript SPA using the **Organic** design system (imported from the Claude Design project). Talks to Firebase Auth (Google + email/password) and Firestore directly.
 - `firebase.json`, `firestore.rules`, `firestore.indexes.json` — Firebase Hosting + Firestore config at the repo root.
-- Backend (MCP server, tag suggestions) lives on the VPS — not in this repo yet.
+- `backend/` — Fastify + TypeScript API and MCP server (OAuth 2.1, tag suggestions). Deployed to the openclaw VPS at `https://ench-api.duckdns.org`; see [backend/README.md](backend/README.md).
 
 ## Development
+
+### Local stack (one command)
+
+```bash
+(cd frontend && npm install) && (cd backend && npm install)   # once
+npm run dev
+```
+
+`npm run dev` (root) starts the Firebase **Auth + Firestore emulators**, the
+backend, and the frontend, all wired to each other — nothing touches the real
+Firebase project. Needs Java (for the emulators) and the Firebase CLI
+(`npm i -g firebase-tools`). The first run seeds test data; emulator data is
+kept in `.emulator-data/` between runs.
+
+| What | Where |
+|---|---|
+| App | http://localhost:5173 |
+| Backend + MCP | http://127.0.0.1:8787 (`/mcp`) |
+| Emulator UI (browse data) | http://127.0.0.1:4000 |
+
+Sign in with Google (the emulator shows a fake account picker — any name works)
+or with the seeded accounts `alice@local.test` / `bob@local.test`, password
+`password123`. Alice owns the shared workspace "Family shopping" with Bob in it.
+Open the app in two browser profiles (or a private window) to try sharing live.
+`npm run seed` re-seeds a running stack.
+
+MCP locally works without OAuth or HTTPS: the seed creates a long-lived bearer
+token for Alice, so any client can connect with a static header:
+
+```bash
+claude mcp add --transport http ench-local http://127.0.0.1:8787/mcp   --header "Authorization: Bearer enat_local_alice"
+```
+
+The real OAuth flow also works locally (consent page signs in against the Auth
+emulator) for clients that accept plain `http://` issuers.
+
+### Tests
+
+```bash
+npm test             # Firestore rules + backend/MCP end-to-end, under the emulators
+npm run test:rules   # rules only (frontend/tests/firestore-rules.test.mjs)
+npm run test:e2e     # backend/tests/e2e.test.ts: workspaces, sharing, MCP over HTTP
+```
+
+Tests use their own emulator project ids, so they never see or touch `npm run dev` data.
+
+On Windows the emulator's Java process occasionally survives a run and keeps
+port 8080; `npm run dev` tells you when that happens and prints the command
+to free it.
+
+### Frontend against the real project
 
 ```bash
 cd frontend

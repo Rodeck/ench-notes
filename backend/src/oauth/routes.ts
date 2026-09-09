@@ -105,6 +105,7 @@ export function registerOAuthRoutes(app: FastifyInstance) {
         codeChallenge,
         scope,
         firebase: config.firebaseWeb,
+        authEmulatorHost: config.authEmulatorHost,
       }),
     )
   })

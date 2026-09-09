@@ -10,6 +10,8 @@ interface ConsentParams {
   codeChallenge: string
   scope: string
   firebase: { apiKey: string; authDomain: string; projectId: string; appId: string }
+  /** host:port of the Auth emulator for local development, if any. */
+  authEmulatorHost?: string
 }
 
 const esc = (s: string) =>
@@ -92,7 +94,7 @@ export function consentPage(p: ConsentParams): string {
 </div>
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js'
-  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js'
+  import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, connectAuthEmulator } from 'https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js'
 
   const params = ${JSON.stringify({
     client_id: p.clientId,
@@ -103,6 +105,7 @@ export function consentPage(p: ConsentParams): string {
   })}
   const app = initializeApp(${JSON.stringify(p.firebase)})
   const auth = getAuth(app)
+  ${p.authEmulatorHost ? `connectAuthEmulator(auth, 'http://${esc(p.authEmulatorHost)}', { disableWarnings: true })` : ''}
   const err = (m) => { document.getElementById('err').textContent = m }
 
   onAuthStateChanged(auth, (user) => {

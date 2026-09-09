@@ -24,3 +24,6 @@ Thumbs.db
 
 # Backend secrets
 backend/secrets/
+
+# Local Firebase emulator data (npm run dev)
+.emulator-data/
