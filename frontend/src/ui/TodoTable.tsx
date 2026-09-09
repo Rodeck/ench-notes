@@ -114,7 +114,11 @@ export function TodoTable({ wsId, list, items, members, onToast }: Props) {
             <tr>
               {COLUMNS.map((c) => (
                 <th key={c.field} aria-sort={view.sort.field === c.field ? (view.sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                  <button className={`th-sort${view.sort.field === c.field ? ' on' : ''}`} onClick={() => toggleSort(c.field)}>
+                  <button
+                    className={`th-sort${view.sort.field === c.field ? ' on' : ''}`}
+                    data-tip={`Sort by ${c.label || 'done'}`}
+                    onClick={() => toggleSort(c.field)}
+                  >
                     {c.label || '✓'}
                     {view.sort.field === c.field && <span className="th-dir">{view.sort.dir === 'asc' ? '↑' : '↓'}</span>}
                   </button>
@@ -191,13 +195,13 @@ function TableRow({ wsId, listId, item, members, onToast }: RowProps) {
             }}
           />
         ) : (
-          <button className="todo-title" onClick={() => setEditing(true)} title="Click to edit">
+          <button className="todo-title" onClick={() => setEditing(true)} data-tip="Click to edit">
             {item.origin === 'mcp' && <SparkIcon />} {item.title}
           </button>
         )}
       </td>
       <td>
-        <label className={`todo-assignee${item.assigneeId ? ' set' : ''}`}>
+        <label className={`todo-assignee${item.assigneeId ? ' set' : ''}`} data-tip="Assignee">
           <span className="avatar avatar-xs">{item.assigneeName ? initials(item.assigneeName) : '?'}</span>
           <span>{item.assigneeName ?? 'Unassigned'}</span>
           <select
@@ -217,7 +221,7 @@ function TableRow({ wsId, listId, item, members, onToast }: RowProps) {
         </label>
       </td>
       <td>
-        <label className={`todo-due${due ? ` ${due.tone}` : ''}`}>
+        <label className={`todo-due${due ? ` ${due.tone}` : ''}`} data-tip="Due date">
           <span>{due ? due.text : 'No date'}</span>
           <input type="date" value={item.dueDate ?? ''} onChange={(e) => void patch({ dueDate: e.target.value || null })} />
         </label>

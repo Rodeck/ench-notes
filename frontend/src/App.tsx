@@ -5,6 +5,7 @@ import { ThemeProvider, useTheme } from './theme'
 import { Login } from './ui/Login'
 import { Workspace } from './ui/Workspace'
 import { Settings } from './ui/Settings'
+import { TooltipLayer } from './ui/Tooltip'
 
 function TopBar({
   screen,
@@ -38,7 +39,7 @@ function TopBar({
         </div>
       )}
       <div className="topbar-spacer" />
-      <button className="btn btn-secondary theme-btn" onClick={toggle}>
+      <button className="btn btn-secondary theme-btn" data-tip="Switch theme" onClick={toggle}>
         <span className="glyph">{effective === 'dark' ? '☾' : '☀'}</span>
         <span>{effective === 'dark' ? 'Dark' : 'Light'}</span>
       </button>
@@ -80,6 +81,7 @@ function Shell() {
         <Settings uid={user.uid} onToast={setToast} />
       )}
       {toast && <Toast msg={toast} />}
+      <TooltipLayer />
     </div>
   )
 }

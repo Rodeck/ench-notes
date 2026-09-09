@@ -210,7 +210,7 @@ export function Editor({ wsId, shared, note, subjects, onDeleted, onToast }: Pro
             <button
               className="suggest-btn"
               disabled={!profile?.premium || suggesting}
-              title={profile?.premium ? undefined : 'Tag suggestions are a Premium feature'}
+              data-tip={profile?.premium ? undefined : 'Tag suggestions are a Premium feature'}
               onClick={() => void runSuggest()}
             >
               ✦ {suggesting ? 'Suggesting…' : 'Suggest tags'}
@@ -302,6 +302,7 @@ export function Editor({ wsId, shared, note, subjects, onDeleted, onToast }: Pro
           <button
             className="btn btn-icon btn-secondary dots-btn"
             aria-label="Note actions"
+            data-tip="Note actions"
             onClick={() => setNoteMenu((v) => !v)}
           >
             ⋯

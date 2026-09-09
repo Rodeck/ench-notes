@@ -110,7 +110,7 @@ export function Sidebar({
         <button className="side-search" onClick={onOpenSearch}>
           <SearchIcon />
           Search
-          <span className="kbd">⌘K</span>
+          <span className="kbd" data-tip="Ctrl+K or ⌘K">⌘K</span>
         </button>
       </div>
 

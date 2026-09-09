@@ -42,14 +42,14 @@ export function WorkspaceSwitcher({ uid, workspaces, current, onSelect, onCreate
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        title="Switch workspace"
+        data-tip="Switch workspace"
       >
         <span className="ws-btn-txt">
           <span className="ws-kicker">Workspace</span>
           <span className="ws-name">{current.name}</span>
         </span>
         {shared && (
-          <span className="ws-shared" title={`Shared with ${current.memberIds.length - 1} other`}>
+          <span className="ws-shared" data-tip={`Shared with ${current.memberIds.length - 1} other${current.memberIds.length > 2 ? 's' : ''}`}>
             <UsersIcon />
           </span>
         )}

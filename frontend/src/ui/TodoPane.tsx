@@ -100,7 +100,7 @@ export function TodoPane({ wsId, workspace, list, onDeleted, onToast }: Props) {
         </span>
         <div className="seg seg-sm" style={{ marginLeft: 'auto' }} role="radiogroup" aria-label="View">
           {(['list', 'table'] as const).map((k) => (
-            <label key={k} className="seg-opt" title={k === 'table' ? 'Table with shared filters and sorting' : 'Checklist'}>
+            <label key={k} className="seg-opt" data-tip={k === 'table' ? 'Table with shared filters and sorting' : 'A simple checklist'}>
               <input
                 type="radio"
                 name={`kind-${list.id}`}
@@ -112,7 +112,7 @@ export function TodoPane({ wsId, workspace, list, onDeleted, onToast }: Props) {
           ))}
         </div>
         <span style={{ position: 'relative' }}>
-          <button className="btn btn-icon btn-secondary dots-btn" aria-label="List actions" onClick={() => setMenu((v) => !v)}>
+          <button className="btn btn-icon btn-secondary dots-btn" aria-label="List actions" data-tip="List actions" onClick={() => setMenu((v) => !v)}>
             ⋯
           </button>
           {menu && (
@@ -268,12 +268,12 @@ function TodoRow({ wsId, listId, item, members, onToast }: RowProps) {
             }}
           />
         ) : (
-          <button className="todo-title" onClick={() => setEditing(true)} title="Click to edit">
+          <button className="todo-title" onClick={() => setEditing(true)} data-tip="Click to edit">
             {item.title}
           </button>
         )}
         <div className="todo-meta">
-          <label className={`todo-assignee${item.assigneeId ? ' set' : ''}`} title="Assignee">
+          <label className={`todo-assignee${item.assigneeId ? ' set' : ''}`} data-tip="Assignee">
             <span className="avatar avatar-xs">{item.assigneeName ? initials(item.assigneeName) : '?'}</span>
             <span>{item.assigneeName ?? 'Unassigned'}</span>
             <select value={item.assigneeId ?? ''} onChange={(e) => setAssignee(e.target.value)}>
@@ -285,7 +285,7 @@ function TodoRow({ wsId, listId, item, members, onToast }: RowProps) {
               ))}
             </select>
           </label>
-          <label className={`todo-due${due ? ` ${due.tone}` : ''}`} title="Due date">
+          <label className={`todo-due${due ? ` ${due.tone}` : ''}`} data-tip="Due date">
             <span>{due ? due.text : 'No date'}</span>
             <input
               type="date"

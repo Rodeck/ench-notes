@@ -79,7 +79,7 @@ export function NoteList({
                   {n.origin === 'mcp' && (
                     <span
                       className="mcp-chip"
-                      title={n.originClient ? `Edited by ${n.originClient}` : 'Edited via MCP'}
+                      data-tip={n.originClient ? `Edited by ${n.originClient}` : 'Edited via MCP'}
                     >
                       <SparkIcon />
                       MCP
