@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { authErrorMessage, loginWithEmail, loginWithGoogle, signUpWithEmail } from '../auth'
 import { GoogleIcon } from './icons'
+import { Logo } from './Logo'
 
 export function Login() {
   const [mode, setMode] = useState<'signin' | 'signup'>('signin')
@@ -32,7 +33,7 @@ export function Login() {
     <div className="login-wrap">
       <div className="login-col">
         <div className="login-head">
-          <span className="login-mark">e</span>
+          <Logo size={56} />
           <h2>ench notes</h2>
           <p className="login-tag">Notes that your AI remembers.</p>
         </div>

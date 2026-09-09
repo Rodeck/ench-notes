@@ -6,6 +6,7 @@ import { Login } from './ui/Login'
 import { Workspace } from './ui/Workspace'
 import { Settings } from './ui/Settings'
 import { TooltipLayer } from './ui/Tooltip'
+import { Logo } from './ui/Logo'
 
 function TopBar({
   screen,
@@ -20,7 +21,7 @@ function TopBar({
   return (
     <div className="topbar">
       <span className="topbar-brand">
-        ench <em>notes</em>
+        <Logo />
       </span>
       {signedIn && (
         <div className="topbar-tabs">
