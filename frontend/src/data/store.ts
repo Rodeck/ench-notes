@@ -5,6 +5,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   orderBy,
   query,
@@ -12,11 +13,12 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore'
 import type { User } from 'firebase/auth'
 import { db, BACKEND_URL } from '../firebase'
 import { auth } from '../firebase'
-import type { McpClient, Note, Subject, Workspace } from './types'
+import type { McpClient, Note, Subject, TodoItem, TodoList, Workspace } from './types'
 
 /* Notes and subjects live under workspaces/{wsId}. Every member of a
    workspace can read and write them (Firestore rules check memberIds).
@@ -26,6 +28,9 @@ const workspacesCol = () => collection(db(), 'workspaces')
 const notesCol = (wsId: string) => collection(db(), 'workspaces', wsId, 'notes')
 const subjectsCol = (wsId: string) => collection(db(), 'workspaces', wsId, 'subjects')
 const clientsCol = (uid: string) => collection(db(), 'users', uid, 'mcpClients')
+const todoListsCol = (wsId: string) => collection(db(), 'workspaces', wsId, 'todoLists')
+const todoItemsCol = (wsId: string, listId: string) =>
+  collection(db(), 'workspaces', wsId, 'todoLists', listId, 'items')
 
 export const DEFAULT_WORKSPACE_NAME = 'My notes'
 
@@ -163,6 +168,116 @@ export async function deleteNote(wsId: string, noteId: string) {
 
 export async function createSubject(wsId: string, name: string, color: string) {
   await addDoc(subjectsCol(wsId), { name, color, createdAt: serverTimestamp() })
+}
+
+/* ── todo lists ───────────────────────────────────────────────────────── */
+
+export function useTodoLists(wsId: string) {
+  const [lists, setLists] = useState<TodoList[] | null>(null)
+  useEffect(() => {
+    setLists(null)
+    const q = query(todoListsCol(wsId), orderBy('createdAt', 'asc'))
+    return onSnapshot(
+      q,
+      (snap) => setLists(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TodoList)),
+      (err) => {
+        console.error('todo lists listener', err)
+        setLists([])
+      },
+    )
+  }, [wsId])
+  return lists
+}
+
+/** Open items first (earliest due date first, undated last), then done. */
+export function compareTodoItems(a: TodoItem, b: TodoItem): number {
+  if (a.done !== b.done) return a.done ? 1 : -1
+  if (a.dueDate !== b.dueDate) {
+    if (!a.dueDate) return 1
+    if (!b.dueDate) return -1
+    return a.dueDate < b.dueDate ? -1 : 1
+  }
+  return (a.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER) - (b.createdAt?.toMillis() ?? Number.MAX_SAFE_INTEGER)
+}
+
+export function useTodoItems(wsId: string, listId: string) {
+  const [items, setItems] = useState<TodoItem[] | null>(null)
+  useEffect(() => {
+    setItems(null)
+    return onSnapshot(
+      todoItemsCol(wsId, listId),
+      (snap) => setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TodoItem).sort(compareTodoItems)),
+      (err) => {
+        console.error('todo items listener', err)
+        setItems([])
+      },
+    )
+  }, [wsId, listId])
+  return items
+}
+
+export async function createTodoList(wsId: string, name: string): Promise<string> {
+  const u = auth().currentUser
+  const ref = await addDoc(todoListsCol(wsId), {
+    name: name.trim(),
+    createdAt: serverTimestamp(),
+    createdBy: u?.uid ?? '',
+    createdByName: editorName(),
+  })
+  return ref.id
+}
+
+export async function renameTodoList(wsId: string, listId: string, name: string) {
+  await updateDoc(doc(db(), 'workspaces', wsId, 'todoLists', listId), { name: name.trim() })
+}
+
+/** Delete the list and its items (the client has no recursive delete). */
+export async function deleteTodoList(wsId: string, listId: string) {
+  const items = await getDocs(todoItemsCol(wsId, listId))
+  const batch = writeBatch(db())
+  for (const d of items.docs) batch.delete(d.ref)
+  batch.delete(doc(db(), 'workspaces', wsId, 'todoLists', listId))
+  await batch.commit()
+}
+
+export async function addTodoItem(
+  wsId: string,
+  listId: string,
+  data: { title: string; assigneeId?: string | null; assigneeName?: string | null; dueDate?: string | null },
+): Promise<string> {
+  const u = auth().currentUser
+  const ref = await addDoc(todoItemsCol(wsId, listId), {
+    title: data.title.trim(),
+    done: false,
+    doneAt: null,
+    assigneeId: data.assigneeId ?? null,
+    assigneeName: data.assigneeName ?? null,
+    dueDate: data.dueDate || null,
+    addedBy: u?.uid ?? '',
+    addedByName: editorName(),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    origin: 'user',
+  })
+  return ref.id
+}
+
+export async function updateTodoItem(
+  wsId: string,
+  listId: string,
+  itemId: string,
+  patch: Partial<Pick<TodoItem, 'title' | 'done' | 'assigneeId' | 'assigneeName' | 'dueDate'>>,
+) {
+  await updateDoc(doc(db(), 'workspaces', wsId, 'todoLists', listId, 'items', itemId), {
+    ...patch,
+    ...(patch.done !== undefined ? { doneAt: patch.done ? serverTimestamp() : null } : {}),
+    updatedAt: serverTimestamp(),
+    origin: 'user',
+  })
+}
+
+export async function deleteTodoItem(wsId: string, listId: string, itemId: string) {
+  await deleteDoc(doc(db(), 'workspaces', wsId, 'todoLists', listId, 'items', itemId))
 }
 
 export async function createWorkspace(user: User, name: string): Promise<string> {

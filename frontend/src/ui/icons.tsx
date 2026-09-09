@@ -91,3 +91,11 @@ export function UsersIcon({ size = 13 }: { size?: number }) {
     </svg>
   )
 }
+
+export function ListIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} {...base} style={{ opacity: 0.7, flex: 'none' }}>
+      <path d="M4 6.5l1.5 1.5L8 5.5M4 12.5l1.5 1.5L8 11.5M4 18.5l1.5 1.5L8 17.5M11 7h9M11 13h9M11 19h9" />
+    </svg>
+  )
+}

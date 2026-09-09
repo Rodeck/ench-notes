@@ -43,7 +43,7 @@ kept in `.emulator-data/` between runs.
 
 Sign in with Google (the emulator shows a fake account picker — any name works)
 or with the seeded accounts `alice@local.test` / `bob@local.test`, password
-`password123`. Alice owns the shared workspace "Family shopping" with Bob in it.
+`password123`. Alice owns the shared workspace "Family shopping" with Bob in it, including a "Weekend" todo list.
 Open the app in two browser profiles (or a private window) to try sharing live.
 `npm run seed` re-seeds a running stack.
 
@@ -88,6 +88,8 @@ Firebase setup (once per environment):
 4. Hosting deploy: `npm run build` in `frontend/`, then `firebase deploy --only hosting`.
 
 Notes and subjects live in **workspaces**: `workspaces/{wsId}` holds `name`, `ownerId`, `memberIds`, and a `members` map, with `notes` and `subjects` subcollections. Every user gets a default workspace whose id is their uid, created on first sign-in. The owner can share a workspace with other accounts by email; every member can add, edit, and delete any note in it, in the app and through MCP (tools take an optional `workspace`, and `list_workspaces` shows what the user can reach). Membership changes go through the backend (`/api/workspaces/*`); the app creates and renames workspaces directly under Firestore rules.
+
+Each workspace also holds **todo lists**: `workspaces/{wsId}/todoLists/{listId}` (name, created by) with an `items` subcollection (title, done, assignee, due date as `YYYY-MM-DD`, added by). Any member can add, edit, tick off, and remove items; assignees are workspace members. MCP exposes them through `list_todo_lists`, `get_todo_list`, `create_todo_list`, `add_todo_item`, `update_todo_item`, `delete_todo_item`, and `delete_todo_list`, with the same workspace scoping as notes.
 
 `users/{uid}` keeps the profile (`premium` is server-managed — set it from the Firebase console; rules prevent clients from flipping it) and the `mcpClients` subcollection. Data written before workspaces existed lives under `users/{uid}/notes` and `subjects`; copy it into the default workspaces once with `npm run migrate:workspaces -- --apply` in `backend/` (dry run without `--apply`).
 

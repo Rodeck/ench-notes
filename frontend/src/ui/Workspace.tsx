@@ -5,8 +5,10 @@ import {
   updateNote,
   useNotes,
   useSubjects,
+  useTodoLists,
   useWorkspaces,
 } from '../data/store'
+import { useTodoOpenCounts } from '../data/todoCounts'
 import type { Workspace as WorkspaceDoc } from '../data/types'
 import { Sidebar } from './Sidebar'
 import { NoteList } from './NoteList'
@@ -14,6 +16,7 @@ import { Editor } from './Editor'
 import { SearchPalette } from './SearchPalette'
 import { WorkspaceDialog } from './WorkspaceDialog'
 import { NewWorkspaceDialog } from './NewWorkspaceDialog'
+import { TodoPane } from './TodoPane'
 
 interface Props {
   uid: string
@@ -136,6 +139,10 @@ function WorkspaceNotes({
   const [sort, setSort] = useState<'updatedAt' | 'createdAt'>('updatedAt')
   const notes = useNotes(wsId, sort)
   const subjects = useSubjects(wsId)
+  const todoLists = useTodoLists(wsId)
+  const todoCounts = useTodoOpenCounts(wsId, todoLists ?? [])
+  // Which todo list is open; null means the notes view.
+  const [listId, setListId] = useState<string | null>(null)
   const [subjectFilter, setSubjectFilter] = useState('all')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
@@ -188,9 +195,15 @@ function WorkspaceNotes({
 
   const openNote = visible.find((n) => n.id === selectedNoteId) ?? null
   const loading = notes === null || subjects === null
+  const openList = listId ? (todoLists?.find((l) => l.id === listId) ?? null) : null
+
+  // Back to notes when the open list disappears (deleted by someone else).
+  useEffect(() => {
+    if (listId && todoLists && !todoLists.some((l) => l.id === listId)) setListId(null)
+  }, [listId, todoLists])
 
   return (
-    <div className={`workspace${openNote ? ' show-editor' : ''}`}>
+    <div className={`workspace${openNote && !openList ? ' show-editor' : ''}${openList ? ' show-todo' : ''}`}>
       <Sidebar
         uid={uid}
         workspace={workspace}
@@ -200,18 +213,35 @@ function WorkspaceNotes({
         onManageWorkspace={onManage}
         subjects={subjects ?? []}
         notes={notes ?? []}
+        todoLists={todoLists ?? []}
+        todoCounts={todoCounts}
+        selectedList={listId}
+        onSelectList={setListId}
         selectedSubject={subjectFilter}
         onSelectSubject={(id) => {
+          setListId(null)
           setSubjectFilter(id)
           setTagFilter(null)
         }}
         tagFilter={tagFilter}
-        onTagFilter={setTagFilter}
+        onTagFilter={(t) => {
+          setListId(null)
+          setTagFilter(t)
+        }}
         onNewNote={() => void newNote()}
         onOpenSearch={() => setSearchOpen(true)}
         onOpenSettings={onOpenSettings}
       />
-      {loading ? (
+      {openList ? (
+        <TodoPane
+          key={openList.id}
+          wsId={wsId}
+          workspace={workspace}
+          list={openList}
+          onDeleted={() => setListId(null)}
+          onToast={onToast}
+        />
+      ) : loading ? (
         <section className="notelist">
           <div className="empty">
             <p style={{ margin: 0 }}>Loading your notes…</p>
@@ -230,7 +260,7 @@ function WorkspaceNotes({
           onNewNote={() => void newNote()}
         />
       )}
-      {openNote ? (
+      {openList ? null : openNote ? (
         <Editor
           wsId={wsId}
           shared={workspace.memberIds.length > 1}

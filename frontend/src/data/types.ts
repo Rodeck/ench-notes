@@ -61,3 +61,31 @@ export interface McpClient {
   connectedAt: Timestamp | null
   lastUsedAt: Timestamp | null
 }
+
+/** A todo list inside a workspace. Items live in a subcollection so several
+    members can edit at the same time without overwriting each other. */
+export interface TodoList {
+  id: string
+  name: string
+  createdAt: Timestamp | null
+  createdBy: string
+  createdByName: string
+}
+
+export interface TodoItem {
+  id: string
+  title: string
+  done: boolean
+  doneAt: Timestamp | null
+  /** Workspace member uid, or null when unassigned. */
+  assigneeId: string | null
+  assigneeName: string | null
+  /** Calendar date as YYYY-MM-DD (no time zone), or null. */
+  dueDate: string | null
+  addedBy: string
+  addedByName: string
+  createdAt: Timestamp | null
+  updatedAt: Timestamp | null
+  origin: 'user' | 'mcp'
+  originClient?: string
+}

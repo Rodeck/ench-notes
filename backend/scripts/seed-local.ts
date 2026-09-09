@@ -140,6 +140,22 @@ await note(ws, 'birthday', {
   by: bob.displayName,
 })
 
+// A shared todo list in Family shopping
+const listRef = db().collection('workspaces').doc(ws).collection('todoLists').doc('weekend-list')
+await listRef.set({ name: 'Weekend', createdAt: now(), createdBy: alice.uid, createdByName: alice.displayName }, { merge: true })
+const todayIso = new Date().toISOString().slice(0, 10)
+const seedItems: Array<[string, Record<string, unknown>]> = [
+  ['buy-flowers', { title: 'Buy flowers for grandma', done: false, assigneeId: bob.uid, assigneeName: bob.displayName, dueDate: todayIso, addedBy: alice.uid, addedByName: alice.displayName }],
+  ['book-table', { title: 'Book a table for Saturday', done: false, assigneeId: alice.uid, assigneeName: alice.displayName, dueDate: null, addedBy: bob.uid, addedByName: bob.displayName }],
+  ['return-library', { title: 'Return library books', done: true, assigneeId: null, assigneeName: null, dueDate: null, addedBy: alice.uid, addedByName: alice.displayName }],
+]
+for (const [id, data] of seedItems) {
+  await listRef.collection('items').doc(id).set(
+    { ...data, doneAt: data.done ? now() : null, createdAt: now(), updatedAt: now(), origin: 'user' },
+    { merge: true },
+  )
+}
+
 // A static MCP bearer token for Alice (read + write), valid for a year, so
 // local MCP clients can skip OAuth. Only meaningful against the emulator.
 await db()
@@ -160,5 +176,5 @@ await db()
   .set({ name: 'Local dev client', scopes: ['read', 'write'], connectedAt: now(), lastUsedAt: null }, { merge: true })
 
 console.log(
-  `seeded ${alice.email} and ${bob.email} (password ${SEED.password}), shared workspace "Family shopping", MCP token ${SEED.mcpToken}`,
+  `seeded ${alice.email} and ${bob.email} (password ${SEED.password}), shared workspace "Family shopping" (+ todo list "Weekend"), MCP token ${SEED.mcpToken}`,
 )

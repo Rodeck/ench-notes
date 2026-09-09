@@ -161,6 +161,70 @@ await t('search with empty query lists recent from all', async () => {
   expect(r.length === 3, `got ${r.length}`)
 })
 
+console.log('MCP todo lists')
+await t('todo tools registered', async () => {
+  const names = (await client.listTools()).tools.map((x) => x.name)
+  for (const n of ['list_todo_lists', 'get_todo_list', 'create_todo_list', 'add_todo_item', 'update_todo_item', 'delete_todo_item', 'delete_todo_list']) expect(names.includes(n), `missing ${n}`)
+})
+await t('create_todo_list in Team', async () => {
+  const r = await call('create_todo_list', { name: 'Chores', workspace: 'Team' })
+  expect(r.workspace_id === sharedRef.id && r.open === 0 && r.created_by === 'Bob', JSON.stringify(r))
+})
+await t('create_todo_list without workspace -> default', async () => {
+  const r = await call('create_todo_list', { name: 'Personal' })
+  expect(r.workspace_id === b.uid, JSON.stringify(r))
+})
+let itemId = ''
+await t('add_todo_item with assignee by name + due date, added_by = Bob', async () => {
+  const r = await call('add_todo_item', { list: 'chores', title: 'Dishes', assignee: 'alice', due_date: '2026-09-10' })
+  expect(r.assignee === 'Alice' && r.due_date === '2026-09-10' && r.added_by === 'Bob' && r.done === false && r.list === 'Chores', JSON.stringify(r))
+  itemId = r.id
+})
+await t('add_todo_item rejects unknown assignee', async () => {
+  const r = await call('add_todo_item', { list: 'Chores', title: 'x', assignee: 'nobody' })
+  expect(r.error === 'assignee_not_found', JSON.stringify(r))
+})
+await t('add_todo_item rejects bad date', async () => {
+  const r = await call('add_todo_item', { list: 'Chores', title: 'x', due_date: 'next tuesday' })
+  expect(r.error === 'invalid_due_date', JSON.stringify(r))
+})
+await t('add_todo_item to unknown list -> error', async () => {
+  const r = await call('add_todo_item', { list: 'Nope', title: 'x' })
+  expect(r.error === 'todo_list_not_found', JSON.stringify(r))
+})
+await t('list_todo_lists across workspaces with counts', async () => {
+  const r = await call('list_todo_lists')
+  const chores = r.find((l: any) => l.name === 'Chores')
+  expect(r.length === 2 && chores.open === 1 && chores.done === 0, JSON.stringify(r))
+})
+await t('update_todo_item by id only: done + unassign + clear date', async () => {
+  const r = await call('update_todo_item', { item_id: itemId, done: true, assignee: '', due_date: '' })
+  expect(r.done === true && r.assignee === null && r.due_date === null && r.doneAt, JSON.stringify(r))
+})
+await t('get_todo_list shows members and done item last; include_done=false hides it', async () => {
+  await call('add_todo_item', { list: 'Chores', title: 'Vacuum', assignee: 'bob@x.com', workspace: sharedRef.id })
+  const full = await call('get_todo_list', { list: 'Chores' })
+  expect(full.items.length === 2 && full.items[0].title === 'Vacuum' && full.items[1].done === true, JSON.stringify(full.items))
+  expect(full.members.includes('Alice') && full.members.includes('Bob'), JSON.stringify(full.members))
+  const open = await call('get_todo_list', { list: 'Chores', include_done: false })
+  expect(open.items.length === 1 && open.done === 1, JSON.stringify(open))
+})
+await t('delete_todo_item', async () => {
+  const r = await call('delete_todo_item', { item_id: itemId, list: 'Chores' })
+  expect(r.deleted === itemId, JSON.stringify(r))
+  expect((await call('update_todo_item', { item_id: itemId, done: false })).error === 'todo_item_not_found', 'gone')
+})
+await t('delete_todo_list removes items too', async () => {
+  const r = await call('delete_todo_list', { list: 'Chores', workspace: 'Team' })
+  expect(r.name === 'Chores', JSON.stringify(r))
+  const lists = await call('list_todo_lists', { workspace: 'Team' })
+  expect(lists.length === 0, JSON.stringify(lists))
+  const items = await sharedRef.collection('todoLists').doc(r.deleted).collection('items').get()
+  expect(items.empty, 'items should be gone')
+})
+// Keep one list in Team to verify it disappears for Bob after removal.
+await call('create_todo_list', { name: 'Team only', workspace: 'Team' })
+
 // Alice removes Bob: his token must no longer reach Team.
 await ws.removeMember(sharedRef.id, a.uid, b.uid)
 await t('after removal: Team invisible', async () => {
@@ -174,6 +238,10 @@ await t('after removal: Team invisible', async () => {
   expect(byWs.error === 'workspace_not_found', JSON.stringify(byWs))
   const del = await call('delete_note', { note_id: (await notes.listNotes(sharedRef.id))[0].id, workspace: 'Team' })
   expect(del.error === 'note_not_found', JSON.stringify(del))
+  const lists = await call('list_todo_lists')
+  expect(!lists.some((l: any) => l.name === 'Team only'), JSON.stringify(lists))
+  const gl = await call('get_todo_list', { list: 'Team only' })
+  expect(gl.error === 'todo_list_not_found', JSON.stringify(gl))
 })
 await t('delete own note', async () => {
   const r = await call('delete_note', { note_id: bobNoteId })

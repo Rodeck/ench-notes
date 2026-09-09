@@ -106,6 +106,29 @@ await t('outsider cannot create note', () => assertFails(addDoc(collection(dbAs(
 await t('outsider cannot read subjects', () => assertFails(getDocs(collection(dbAs(C), 'workspaces', 'shared', 'subjects'))))
 await t('notes in nonexistent workspace denied', () => assertFails(getDocs(collection(dbAs(C), 'workspaces', 'nope', 'notes'))))
 
+console.log('todo lists')
+await env.withSecurityRulesDisabled(async (ctx) => {
+  await setDoc(doc(ctx.firestore(), 'workspaces', 'shared', 'todoLists', 'l1'), { name: 'Chores', createdBy: A, createdByName: 'A' })
+  await setDoc(doc(ctx.firestore(), 'workspaces', 'shared', 'todoLists', 'l1', 'items', 'i1'), { title: 'Dishes', done: false })
+})
+await t('member reads lists', async () => {
+  const snap = await assertSucceeds(getDocs(collection(dbAs(B), 'workspaces', 'shared', 'todoLists')))
+  if (snap.size !== 1) throw new Error(`expected 1 got ${snap.size}`)
+})
+await t('member creates list', () => assertSucceeds(addDoc(collection(dbAs(B), 'workspaces', 'shared', 'todoLists'), { name: 'Trip', createdBy: B, createdByName: 'B' })))
+await t('member renames list', () => assertSucceeds(updateDoc(doc(dbAs(B), 'workspaces', 'shared', 'todoLists', 'l1'), { name: 'Housework' })))
+await t('member reads items (open filter)', async () => {
+  const snap = await assertSucceeds(getDocs(query(collection(dbAs(B), 'workspaces', 'shared', 'todoLists', 'l1', 'items'), where('done', '==', false))))
+  if (snap.size !== 1) throw new Error(`expected 1 got ${snap.size}`)
+})
+await t('member adds item', () => assertSucceeds(addDoc(collection(dbAs(B), 'workspaces', 'shared', 'todoLists', 'l1', 'items'), { title: 'Laundry', done: false, addedBy: B })))
+await t('member marks item done', () => assertSucceeds(updateDoc(doc(dbAs(B), 'workspaces', 'shared', 'todoLists', 'l1', 'items', 'i1'), { done: true })))
+await t('member deletes item', () => assertSucceeds(deleteDoc(doc(dbAs(B), 'workspaces', 'shared', 'todoLists', 'l1', 'items', 'i1'))))
+await t('member deletes list', () => assertSucceeds(deleteDoc(doc(dbAs(B), 'workspaces', 'shared', 'todoLists', 'l1'))))
+await t('outsider cannot read lists', () => assertFails(getDocs(collection(dbAs(C), 'workspaces', 'shared', 'todoLists'))))
+await t('outsider cannot read items', () => assertFails(getDocs(collection(dbAs(C), 'workspaces', 'shared', 'todoLists', 'l1', 'items'))))
+await t('outsider cannot add item', () => assertFails(addDoc(collection(dbAs(C), 'workspaces', 'shared', 'todoLists', 'l1', 'items'), { title: 'x' })))
+
 console.log('after removal (admin removes B)')
 await env.withSecurityRulesDisabled(async (ctx) => {
   await updateDoc(doc(ctx.firestore(), 'workspaces', 'shared'), { memberIds: [A] })

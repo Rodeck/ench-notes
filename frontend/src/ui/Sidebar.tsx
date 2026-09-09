@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import type { Note, Subject, Workspace } from '../data/types'
+import type { Note, Subject, TodoList, Workspace } from '../data/types'
 import { ALL_NOTES_COLOR, SUBJECT_COLORS, initials, tagHue } from '../data/palette'
-import { createSubject } from '../data/store'
+import { createSubject, createTodoList } from '../data/store'
 import { useAuth } from '../auth'
-import { ChevronRightIcon, PlusIcon, SearchIcon } from './icons'
+import { ChevronRightIcon, ListIcon, PlusIcon, SearchIcon } from './icons'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 
 interface Props {
@@ -15,7 +15,12 @@ interface Props {
   onManageWorkspace: () => void
   subjects: Subject[]
   notes: Note[]
-  selectedSubject: string // 'all' or subject id
+  todoLists: TodoList[]
+  /** Open-item count per list id. */
+  todoCounts: Map<string, number>
+  selectedList: string | null
+  onSelectList: (id: string) => void
+  selectedSubject: string // 'all' or subject id; ignored while a list is open
   onSelectSubject: (id: string) => void
   tagFilter: string | null
   onTagFilter: (tag: string | null) => void
@@ -33,6 +38,10 @@ export function Sidebar({
   onManageWorkspace,
   subjects,
   notes,
+  todoLists,
+  todoCounts,
+  selectedList,
+  onSelectList,
   selectedSubject,
   onSelectSubject,
   tagFilter,
@@ -45,6 +54,8 @@ export function Sidebar({
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const [newColor, setNewColor] = useState(SUBJECT_COLORS[0])
+  const [addingList, setAddingList] = useState(false)
+  const [newListName, setNewListName] = useState('')
 
   const counts = useMemo(() => {
     const m = new Map<string, number>()
@@ -60,6 +71,15 @@ export function Sidebar({
     for (const n of notes) for (const t of n.tags) m.set(t, (m.get(t) ?? 0) + 1)
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([t]) => t)
   }, [notes])
+
+  async function submitList() {
+    const name = newListName.trim()
+    if (!name) return
+    const id = await createTodoList(workspace.id, name)
+    setNewListName('')
+    setAddingList(false)
+    onSelectList(id)
+  }
 
   async function submitSubject() {
     const name = newName.trim()
@@ -95,7 +115,7 @@ export function Sidebar({
       <div className="side-group">
         <h6 className="side-h6">Subjects</h6>
         <button
-          className={`subj-btn${selectedSubject === 'all' ? ' on' : ''}`}
+          className={`subj-btn${!selectedList && selectedSubject === 'all' ? ' on' : ''}`}
           onClick={() => onSelectSubject('all')}
         >
           <span className="subj-dot" style={{ background: ALL_NOTES_COLOR }} />
@@ -105,7 +125,7 @@ export function Sidebar({
         {subjects.map((s) => (
           <button
             key={s.id}
-            className={`subj-btn${selectedSubject === s.id ? ' on' : ''}`}
+            className={`subj-btn${!selectedList && selectedSubject === s.id ? ' on' : ''}`}
             onClick={() => onSelectSubject(s.id)}
           >
             <span className="subj-dot" style={{ background: s.color }} />
@@ -142,6 +162,41 @@ export function Sidebar({
           <button className="side-add" onClick={() => setAdding(true)}>
             <PlusIcon size={14} />
             Add subject
+          </button>
+        )}
+      </div>
+
+      <div className="side-group">
+        <h6 className="side-h6">Lists</h6>
+        {todoLists.map((l) => (
+          <button
+            key={l.id}
+            className={`subj-btn${selectedList === l.id ? ' on' : ''}`}
+            onClick={() => onSelectList(l.id)}
+          >
+            <ListIcon />
+            <span className="subj-name">{l.name}</span>
+            <span className="subj-count">{todoCounts.get(l.id) ?? 0}</span>
+          </button>
+        ))}
+        {addingList ? (
+          <div className="side-addform">
+            <input
+              className="input"
+              autoFocus
+              placeholder="List name"
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void submitList()
+                if (e.key === 'Escape') setAddingList(false)
+              }}
+            />
+          </div>
+        ) : (
+          <button className="side-add" onClick={() => setAddingList(true)}>
+            <PlusIcon size={14} />
+            Add list
           </button>
         )}
       </div>

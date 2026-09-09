@@ -16,14 +16,32 @@ import {
   type NoteDoc,
 } from './notes.js'
 import { defaultWorkspaceId, listWorkspacesFor, type WorkspaceDoc } from './workspaces.js'
+import {
+  addItem,
+  createTodoList,
+  deleteItem,
+  deleteTodoList,
+  getItem,
+  itemForLlm,
+  listForLlm,
+  listItems,
+  listTodoLists,
+  resolveAssignee,
+  resolveTodoList,
+  updateItem,
+  type Actor,
+  type TodoItemDoc,
+  type TodoListDoc,
+} from './todos.js'
 
 /* MCP server (Streamable HTTP, stateless: one transport per request).
    Bearer tokens come from the OAuth layer in ./oauth.
 
-   Notes live in workspaces. A user always has a default (personal) workspace
-   and may belong to workspaces other users shared with them. Every tool
-   resolves its target workspace from the caller's memberships, so a token
-   can never reach a workspace its user is not a member of. */
+   Notes and todo lists live in workspaces. A user always has a default
+   (personal) workspace and may belong to workspaces other users shared with
+   them. Every tool resolves its target workspace from the caller's
+   memberships, so a token can never reach a workspace its user is not a
+   member of. */
 
 function text(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
@@ -76,6 +94,40 @@ class WorkspaceScope {
     return one ? [one] : null
   }
 
+  /** Find a todo list by id or name in the named workspace, or in any accessible one. */
+  async locateList(ref: string, workspace: string | undefined): Promise<{ ws: WorkspaceDoc; list: TodoListDoc } | null> {
+    const candidates = await this.forRead(workspace)
+    if (!candidates) return null
+    for (const ws of candidates) {
+      const list = await resolveTodoList(ws.id, ref)
+      if (list) return { ws, list }
+    }
+    return null
+  }
+
+  /** Find a todo item by id: in the given list, or in every list the user can see. */
+  async locateItem(
+    itemId: string,
+    listRef: string | undefined,
+    workspace: string | undefined,
+  ): Promise<{ ws: WorkspaceDoc; list: TodoListDoc; item: TodoItemDoc } | null> {
+    if (listRef) {
+      const hit = await this.locateList(listRef, workspace)
+      if (!hit) return null
+      const item = await getItem(hit.ws.id, hit.list.id, itemId)
+      return item ? { ...hit, item } : null
+    }
+    const candidates = await this.forRead(workspace)
+    if (!candidates) return null
+    for (const ws of candidates) {
+      for (const list of await listTodoLists(ws.id)) {
+        const item = await getItem(ws.id, list.id, itemId)
+        if (item) return { ws, list, item }
+      }
+    }
+    return null
+  }
+
   /** Find a note by id in the named workspace, or in any accessible one. */
   async locateNote(
     noteId: string,
@@ -90,6 +142,31 @@ class WorkspaceScope {
     return null
   }
 }
+
+const listParam = z.string().describe('Todo list name or id (see list_todo_lists)')
+const assigneeParam = z
+  .string()
+  .optional()
+  .describe('Workspace member to assign, by display name or email; empty string to unassign')
+const dueDateParam = z.string().optional().describe('Due date as YYYY-MM-DD; empty string to clear')
+
+/** Who is acting, for the "added by" fields: the member's display name. */
+function actorFor(ctx: McpAuthContext, ws: WorkspaceDoc): Actor {
+  const m = ws.members[ctx.uid]
+  return { uid: ctx.uid, name: m?.displayName || m?.email || 'Someone', client: ctx.clientName }
+}
+
+/** Assignee ref -> member; undefined when not given, null to clear. */
+function assigneeFor(ws: WorkspaceDoc, ref: string | undefined) {
+  if (ref === undefined) return undefined
+  if (!ref.trim()) return null
+  const found = resolveAssignee(ws, ref)
+  if (!found) throw new Error('assignee_not_found')
+  return found
+}
+
+const listNotFound = (ref: string) =>
+  text({ error: 'todo_list_not_found', message: `No todo list matches "${ref}". Call list_todo_lists.` })
 
 const workspaceNotFound = (ref: string | undefined) =>
   text({
@@ -107,7 +184,7 @@ function buildServer(ctx: McpAuthContext): McpServer {
     {
       description:
         'List the workspaces the user can access. Each user has a default personal workspace; ' +
-        'other workspaces may be shared with them by other users (a shared list of notes). ' +
+        'other workspaces may be shared with them by other users (shared notes and todo lists). ' +
         'Pass a workspace name or id to the other tools to target it. Reads cover all workspaces ' +
         'by default; writes go to the personal one by default.',
       inputSchema: {},
@@ -185,7 +262,164 @@ function buildServer(ctx: McpAuthContext): McpServer {
     },
   )
 
+  server.registerTool(
+    'list_todo_lists',
+    {
+      description:
+        "List the user's todo lists with open/done counts. Todo lists live in workspaces next to notes; " +
+        'in a shared workspace every member sees and edits the same lists (a shared checklist). ' +
+        'Covers every accessible workspace unless one is given.',
+      inputSchema: { workspace: workspaceParam },
+    },
+    async ({ workspace }) => {
+      const targets = await scope.forRead(workspace)
+      if (!targets) return workspaceNotFound(workspace)
+      const out = await Promise.all(
+        targets.map(async (ws) =>
+          Promise.all(
+            (await listTodoLists(ws.id)).map(async (l) => listForLlm(l, await listItems(ws.id, l.id), ws)),
+          ),
+        ),
+      )
+      return text(out.flat())
+    },
+  )
+
+  server.registerTool(
+    'get_todo_list',
+    {
+      description:
+        'Fetch a todo list with its items: title, done, assignee, due date, who added it. ' +
+        'Open items come first (earliest due date first), then done ones. Also lists the workspace ' +
+        'members who can be assignees.',
+      inputSchema: {
+        list: listParam,
+        workspace: workspaceParam,
+        include_done: z.boolean().optional().describe('Include completed items (default true)'),
+      },
+    },
+    async ({ list, workspace, include_done }) => {
+      const hit = await scope.locateList(list, workspace)
+      if (!hit) return listNotFound(list)
+      const all = await listItems(hit.ws.id, hit.list.id)
+      const items = all.filter((i) => include_done !== false || !i.done)
+      return text({
+        ...listForLlm(hit.list, all, hit.ws),
+        members: Object.values(hit.ws.members).map((m) => m.displayName || m.email),
+        items: items.map((i) => itemForLlm(i, hit.list, hit.ws)),
+      })
+    },
+  )
+
   if (canWrite) {
+    server.registerTool(
+      'create_todo_list',
+      {
+        description:
+          'Create a new todo list. Goes to the default personal workspace unless a workspace is given; ' +
+          'use a shared workspace for a list several people work on.',
+        inputSchema: { name: z.string().min(1), workspace: workspaceParam },
+      },
+      async ({ name, workspace }) => {
+        const ws = await scope.resolve(workspace)
+        if (!ws) return workspaceNotFound(workspace)
+        const list = await createTodoList(ws.id, actorFor(ctx, ws), name)
+        return text(listForLlm(list, [], ws))
+      },
+    )
+
+    server.registerTool(
+      'add_todo_item',
+      {
+        description:
+          'Add an item to a todo list. Optionally assign it to a workspace member (see get_todo_list members) ' +
+          'and set a due date. The item records the user as "added by".',
+        inputSchema: {
+          list: listParam,
+          title: z.string().min(1),
+          assignee: assigneeParam,
+          due_date: dueDateParam,
+          workspace: workspaceParam,
+        },
+      },
+      async ({ list, title, assignee, due_date, workspace }) => {
+        const hit = await scope.locateList(list, workspace)
+        if (!hit) return listNotFound(list)
+        try {
+          const item = await addItem(hit.ws.id, hit.list.id, actorFor(ctx, hit.ws), {
+            title,
+            assignee: assigneeFor(hit.ws, assignee),
+            dueDate: due_date,
+          })
+          return text(itemForLlm(item, hit.list, hit.ws))
+        } catch (err) {
+          return text({ error: (err as Error).message })
+        }
+      },
+    )
+
+    server.registerTool(
+      'update_todo_item',
+      {
+        description:
+          'Update a todo item: mark it done or not done, change the title, assignee, or due date. ' +
+          'Only pass the fields to change. Item ids come from get_todo_list; giving the list too is faster.',
+        inputSchema: {
+          item_id: z.string(),
+          list: listParam.optional(),
+          workspace: workspaceParam,
+          title: z.string().min(1).optional(),
+          done: z.boolean().optional(),
+          assignee: assigneeParam,
+          due_date: dueDateParam,
+        },
+      },
+      async ({ item_id, list, workspace, title, done, assignee, due_date }) => {
+        const hit = await scope.locateItem(item_id, list, workspace)
+        if (!hit) return text({ error: 'todo_item_not_found' })
+        try {
+          const item = await updateItem(hit.ws.id, hit.list.id, item_id, actorFor(ctx, hit.ws), {
+            title,
+            done,
+            assignee: assigneeFor(hit.ws, assignee),
+            dueDate: due_date,
+          })
+          if (!item) return text({ error: 'todo_item_not_found' })
+          return text(itemForLlm(item, hit.list, hit.ws))
+        } catch (err) {
+          return text({ error: (err as Error).message })
+        }
+      },
+    )
+
+    server.registerTool(
+      'delete_todo_item',
+      {
+        description: 'Remove an item from a todo list. Prefer marking items done unless the user wants them gone.',
+        inputSchema: { item_id: z.string(), list: listParam.optional(), workspace: workspaceParam },
+      },
+      async ({ item_id, list, workspace }) => {
+        const hit = await scope.locateItem(item_id, list, workspace)
+        if (!hit) return text({ error: 'todo_item_not_found' })
+        await deleteItem(hit.ws.id, hit.list.id, item_id)
+        return text({ deleted: item_id, list: hit.list.name })
+      },
+    )
+
+    server.registerTool(
+      'delete_todo_list',
+      {
+        description: 'Permanently delete a todo list and all its items. Only when the user clearly asks for it.',
+        inputSchema: { list: listParam, workspace: workspaceParam },
+      },
+      async ({ list, workspace }) => {
+        const hit = await scope.locateList(list, workspace)
+        if (!hit) return listNotFound(list)
+        await deleteTodoList(hit.ws.id, hit.list.id)
+        return text({ deleted: hit.list.id, name: hit.list.name })
+      },
+    )
+
     server.registerTool(
       'create_note',
       {

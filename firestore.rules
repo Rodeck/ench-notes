@@ -81,6 +81,12 @@ service cloud.firestore {
       match /subjects/{subjectId} {
         allow read, write: if memberOf(wsId);
       }
+      match /todoLists/{listId} {
+        allow read, write: if memberOf(wsId);
+        match /items/{itemId} {
+          allow read, write: if memberOf(wsId);
+        }
+      }
     }
   }
 }
