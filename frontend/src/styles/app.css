@@ -59,6 +59,56 @@
   min-height: 720px;
 }
 
+/* ── workspace switcher (sidebar header) ─────────────────────────────── */
+.ws-wrap { position: relative; }
+.ws-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  cursor: pointer; font: inherit; text-align: left; color: inherit;
+  padding: 8px 12px; border-radius: 16px; border: 0;
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+}
+.ws-btn:hover { background: color-mix(in srgb, var(--color-text) 10%, transparent); }
+.ws-btn-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ws-kicker {
+  font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.ws-name {
+  font-family: var(--font-heading); font-size: 16px; line-height: 1.25;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ws-shared { display: grid; place-items: center; color: var(--color-accent); }
+.ws-menu {
+  position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 70;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  border-radius: 18px; background: var(--color-surface); box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-divider);
+}
+.ws-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%;
+  cursor: pointer; font: inherit; text-align: left; color: inherit;
+  padding: 7px 12px; border: 0; border-radius: 12px; background: transparent;
+}
+.ws-item:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.ws-item.on { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
+.ws-item-name { font-size: 14px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-item-sub { font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.ws-item-action { flex-direction: row; align-items: center; gap: 9px; font-size: 13px; color: color-mix(in srgb, var(--color-text) 70%, transparent); }
+.ws-item-action:hover { color: var(--color-accent); }
+.ws-menu-sep { height: 1px; margin: 4px 8px; background: var(--color-divider); }
+
+/* ── workspace dialog ────────────────────────────────────────────────── */
+.ws-dialog { width: min(480px, 100%); gap: var(--space-4); }
+.ws-field { display: flex; flex-direction: column; gap: 8px; }
+.ws-members { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow: auto; }
+.ws-member { display: flex; align-items: center; gap: 10px; padding: 4px 2px; }
+.ws-member-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ws-member-name { font-size: 14px; font-weight: 600; }
+.ws-member-mail { font-size: 12px; color: color-mix(in srgb, var(--color-text) 55%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-invite { display: flex; gap: 8px; align-items: center; }
+.ws-invite .input { flex: 1; min-width: 0; }
+.editor-by { font-size: 12px; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+
 /* ── sidebar ─────────────────────────────────────────────────────────── */
 .sidebar {
   display: flex; flex-direction: column; gap: var(--space-4);

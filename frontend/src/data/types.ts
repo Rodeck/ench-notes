@@ -11,6 +11,8 @@ export interface Note {
   /** Who made the last edit — powers the MCP badge. */
   origin: 'user' | 'mcp'
   originClient?: string
+  /** Display name of the person behind the last edit (shared workspaces). */
+  updatedByName?: string
 }
 
 export interface Subject {
@@ -25,6 +27,29 @@ export interface UserProfile {
   email: string
   premium: boolean
   theme: ThemePref
+  /** Always the uid today; kept explicit so it can change later. */
+  defaultWorkspaceId?: string
+}
+
+export type WorkspaceRole = 'owner' | 'member'
+
+export interface WorkspaceMember {
+  role: WorkspaceRole
+  email: string
+  displayName: string
+  addedAt?: Timestamp | null
+}
+
+/** A container for notes + subjects. The user's default workspace has their
+    uid as its id; others are either their own extra workspaces or ones
+    shared with them. */
+export interface Workspace {
+  id: string
+  name: string
+  ownerId: string
+  memberIds: string[]
+  members: Record<string, WorkspaceMember>
+  createdAt: Timestamp | null
 }
 
 export type ThemePref = 'system' | 'light' | 'dark'

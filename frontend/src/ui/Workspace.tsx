@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNotes, useSubjects, createNote } from '../data/store'
+import {
+  createNote,
+  defaultWorkspaceId,
+  updateNote,
+  useNotes,
+  useSubjects,
+  useWorkspaces,
+} from '../data/store'
+import type { Workspace as WorkspaceDoc } from '../data/types'
 import { Sidebar } from './Sidebar'
 import { NoteList } from './NoteList'
 import { Editor } from './Editor'
 import { SearchPalette } from './SearchPalette'
+import { WorkspaceDialog } from './WorkspaceDialog'
+import { NewWorkspaceDialog } from './NewWorkspaceDialog'
 
 interface Props {
   uid: string
@@ -11,10 +21,121 @@ interface Props {
   onToast: (msg: string) => void
 }
 
+const lastWorkspaceKey = (uid: string) => `ench:lastWorkspace:${uid}`
+
+function readLastWorkspace(uid: string): string | null {
+  try {
+    return localStorage.getItem(lastWorkspaceKey(uid))
+  } catch {
+    return null
+  }
+}
+
 export function Workspace({ uid, onOpenSettings, onToast }: Props) {
+  const workspaces = useWorkspaces(uid)
+  const [wsId, setWsId] = useState<string>(() => readLastWorkspace(uid) ?? defaultWorkspaceId(uid))
+  const [manageOpen, setManageOpen] = useState(false)
+  const [newWsOpen, setNewWsOpen] = useState(false)
+
+  // Fall back to the default workspace when the chosen one disappears
+  // (left, deleted, or removed by the owner). Wait until the default is in
+  // the list: on first sign-in it is created a moment after the query starts.
+  useEffect(() => {
+    if (!workspaces) return
+    const def = defaultWorkspaceId(uid)
+    if (!workspaces.some((w) => w.id === wsId) && workspaces.some((w) => w.id === def)) setWsId(def)
+  }, [workspaces, wsId, uid])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(lastWorkspaceKey(uid), wsId)
+    } catch {
+      /* private mode etc. */
+    }
+  }, [uid, wsId])
+
+  const current: WorkspaceDoc | null = workspaces?.find((w) => w.id === wsId) ?? null
+
+  if (!workspaces || !current) {
+    return (
+      <div className="workspace">
+        <aside className="sidebar" />
+        <section className="notelist">
+          <div className="empty">
+            <p style={{ margin: 0 }}>Loading your workspaces…</p>
+          </div>
+        </section>
+        <section className="editor-pane" />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      <WorkspaceNotes
+        key={current.id}
+        uid={uid}
+        workspace={current}
+        workspaces={workspaces}
+        onSelectWorkspace={setWsId}
+        onOpenSettings={onOpenSettings}
+        onToast={onToast}
+        onManage={() => setManageOpen(true)}
+        onCreateWorkspace={() => setNewWsOpen(true)}
+      />
+      {manageOpen && (
+        <WorkspaceDialog
+          uid={uid}
+          workspace={current}
+          onClose={() => setManageOpen(false)}
+          onToast={onToast}
+          onGone={() => {
+            setManageOpen(false)
+            setWsId(defaultWorkspaceId(uid))
+          }}
+        />
+      )}
+      {newWsOpen && (
+        <NewWorkspaceDialog
+          onClose={() => setNewWsOpen(false)}
+          onCreated={(id) => {
+            setNewWsOpen(false)
+            setWsId(id)
+            setManageOpen(true)
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+interface NotesProps {
+  uid: string
+  workspace: WorkspaceDoc
+  workspaces: WorkspaceDoc[]
+  onSelectWorkspace: (id: string) => void
+  onOpenSettings: () => void
+  onToast: (msg: string) => void
+  onManage: () => void
+  onCreateWorkspace: () => void
+}
+
+/** The three-pane notes UI for one workspace. Keyed on the workspace id by
+    the parent so filters and selection reset when switching. */
+function WorkspaceNotes({
+  uid,
+  workspace,
+  workspaces,
+  onSelectWorkspace,
+  onOpenSettings,
+  onToast,
+  onManage,
+  onCreateWorkspace,
+}: NotesProps) {
+  const wsId = workspace.id
   const [sort, setSort] = useState<'updatedAt' | 'createdAt'>('updatedAt')
-  const notes = useNotes(uid, sort)
-  const subjects = useSubjects(uid)
+  const notes = useNotes(wsId, sort)
+  const subjects = useSubjects(wsId)
   const [subjectFilter, setSubjectFilter] = useState('all')
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
@@ -54,11 +175,8 @@ export function Workspace({ uid, onOpenSettings, onToast }: Props) {
 
   async function newNote(title = '') {
     const subjectId = subjectFilter === 'all' ? null : subjectFilter
-    const id = await createNote(uid, subjectId)
-    if (title) {
-      const { updateNote } = await import('../data/store')
-      await updateNote(uid, id, { title })
-    }
+    const id = await createNote(wsId, subjectId)
+    if (title) await updateNote(wsId, id, { title })
     setSelectedNoteId(id)
   }
 
@@ -75,6 +193,11 @@ export function Workspace({ uid, onOpenSettings, onToast }: Props) {
     <div className={`workspace${openNote ? ' show-editor' : ''}`}>
       <Sidebar
         uid={uid}
+        workspace={workspace}
+        workspaces={workspaces}
+        onSelectWorkspace={onSelectWorkspace}
+        onCreateWorkspace={onCreateWorkspace}
+        onManageWorkspace={onManage}
         subjects={subjects ?? []}
         notes={notes ?? []}
         selectedSubject={subjectFilter}
@@ -109,7 +232,8 @@ export function Workspace({ uid, onOpenSettings, onToast }: Props) {
       )}
       {openNote ? (
         <Editor
-          uid={uid}
+          wsId={wsId}
+          shared={workspace.memberIds.length > 1}
           note={openNote}
           subjects={subjects ?? []}
           onDeleted={() => setSelectedNoteId(null)}

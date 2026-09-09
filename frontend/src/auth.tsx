@@ -11,6 +11,7 @@ import {
 import { doc, getDoc, onSnapshot, setDoc } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import type { UserProfile } from './data/types'
+import { defaultWorkspaceId, ensureDefaultWorkspace } from './data/store'
 
 interface AuthState {
   user: User | null
@@ -24,7 +25,9 @@ export function useAuth() {
   return useContext(AuthContext)
 }
 
-/** Create the users/{uid} doc on first sign-in (premium always starts false). */
+/** Create the users/{uid} doc and the default workspace on first sign-in
+    (premium always starts false). Both steps are idempotent, so an existing
+    user who predates workspaces gets theirs on next sign-in. */
 async function ensureProfile(user: User) {
   const ref = doc(db(), 'users', user.uid)
   const snap = await getDoc(ref)
@@ -34,8 +37,12 @@ async function ensureProfile(user: User) {
       email: user.email ?? '',
       premium: false,
       theme: 'system',
+      defaultWorkspaceId: defaultWorkspaceId(user.uid),
     })
+  } else if (!snap.data().defaultWorkspaceId) {
+    await setDoc(ref, { defaultWorkspaceId: defaultWorkspaceId(user.uid) }, { merge: true })
   }
+  await ensureDefaultWorkspace(user)
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

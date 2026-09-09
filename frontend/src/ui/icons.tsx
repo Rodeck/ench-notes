@@ -82,3 +82,12 @@ export function GoogleIcon({ size = 16 }: { size?: number }) {
     </svg>
   )
 }
+
+export function UsersIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} {...base}>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M3 20a6 6 0 0 1 12 0M16 4.5a3.5 3.5 0 0 1 0 7M21 20a6 6 0 0 0-4-5.6" />
+    </svg>
+  )
+}

@@ -1,6 +1,6 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app'
-import { getAuth, type Auth } from 'firebase/auth'
-import { getFirestore, type Firestore } from 'firebase/firestore'
+import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth'
+import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore'
 
 const config = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -21,6 +21,11 @@ if (firebaseConfigured) {
   app = initializeApp(config)
   authInstance = getAuth(app)
   dbInstance = getFirestore(app)
+  // Local development against `firebase emulators:start --only auth,firestore`.
+  if (import.meta.env.VITE_FIREBASE_EMULATORS === '1') {
+    connectAuthEmulator(authInstance, 'http://127.0.0.1:9099', { disableWarnings: true })
+    connectFirestoreEmulator(dbInstance, '127.0.0.1', 8080)
+  }
 }
 
 export function auth(): Auth {

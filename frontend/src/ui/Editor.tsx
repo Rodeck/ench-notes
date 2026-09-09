@@ -9,14 +9,16 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { ChevronDownIcon, PlusIcon } from './icons'
 
 interface Props {
-  uid: string
+  wsId: string
+  /** Workspace has other members: show who made the last edit. */
+  shared: boolean
   note: Note
   subjects: Subject[]
   onDeleted: () => void
   onToast: (msg: string) => void
 }
 
-export function Editor({ uid, note, subjects, onDeleted, onToast }: Props) {
+export function Editor({ wsId, shared, note, subjects, onDeleted, onToast }: Props) {
   const { profile } = useAuth()
   const [title, setTitle] = useState(note.title)
   const [body, setBody] = useState(note.body)
@@ -65,12 +67,12 @@ export function Editor({ uid, note, subjects, onDeleted, onToast }: Props) {
       pending.current = null
       setSaving(true)
       try {
-        await updateNote(uid, id, p)
+        await updateNote(wsId, id, p)
       } finally {
         setSaving(false)
       }
     },
-    [uid],
+    [wsId],
   )
 
   // Flush on unmount / note switch so the last keystroke is never lost.
@@ -88,17 +90,17 @@ export function Editor({ uid, note, subjects, onDeleted, onToast }: Props) {
 
   async function setSubject(subjectId: string | null) {
     setSubjectMenu(false)
-    await updateNote(uid, noteId, { subjectId })
+    await updateNote(wsId, noteId, { subjectId })
   }
 
   async function addTag(raw: string) {
     const t = raw.trim().replace(/^#/, '').toLowerCase()
     if (!t || note.tags.includes(t)) return
-    await updateNote(uid, noteId, { tags: [...note.tags, t] })
+    await updateNote(wsId, noteId, { tags: [...note.tags, t] })
   }
 
   async function removeTag(t: string) {
-    await updateNote(uid, noteId, { tags: note.tags.filter((x) => x !== t) })
+    await updateNote(wsId, noteId, { tags: note.tags.filter((x) => x !== t) })
   }
 
   async function acceptSuggestion(t: string) {
@@ -285,10 +287,17 @@ export function Editor({ uid, note, subjects, onDeleted, onToast }: Props) {
           {saving ? 'Saving…' : 'Saved'}
         </span>
         <span className="editor-foot-right" style={{ position: 'relative' }}>
-          {note.origin === 'mcp' && (
+          {note.origin === 'mcp' ? (
             <span className="claude-chip">
               ✦ Edited by {note.originClient ?? 'assistant'}, {agoTime(note.updatedAt)}
             </span>
+          ) : (
+            shared &&
+            note.updatedByName && (
+              <span className="editor-by">
+                Edited by {note.updatedByName}, {agoTime(note.updatedAt)}
+              </span>
+            )
           )}
           <button
             className="btn btn-icon btn-secondary dots-btn"
@@ -322,7 +331,7 @@ export function Editor({ uid, note, subjects, onDeleted, onToast }: Props) {
           onConfirm={() => {
             setConfirmDelete(false)
             pending.current = null
-            void deleteNote(uid, noteId).then(onDeleted)
+            void deleteNote(wsId, noteId).then(onDeleted)
           }}
         />
       )}

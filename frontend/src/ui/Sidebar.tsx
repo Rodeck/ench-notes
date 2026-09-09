@@ -1,12 +1,18 @@
 import { useMemo, useState } from 'react'
-import type { Note, Subject } from '../data/types'
+import type { Note, Subject, Workspace } from '../data/types'
 import { ALL_NOTES_COLOR, SUBJECT_COLORS, initials, tagHue } from '../data/palette'
 import { createSubject } from '../data/store'
 import { useAuth } from '../auth'
 import { ChevronRightIcon, PlusIcon, SearchIcon } from './icons'
+import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 
 interface Props {
   uid: string
+  workspace: Workspace
+  workspaces: Workspace[]
+  onSelectWorkspace: (id: string) => void
+  onCreateWorkspace: () => void
+  onManageWorkspace: () => void
   subjects: Subject[]
   notes: Note[]
   selectedSubject: string // 'all' or subject id
@@ -20,6 +26,11 @@ interface Props {
 
 export function Sidebar({
   uid,
+  workspace,
+  workspaces,
+  onSelectWorkspace,
+  onCreateWorkspace,
+  onManageWorkspace,
   subjects,
   notes,
   selectedSubject,
@@ -53,7 +64,7 @@ export function Sidebar({
   async function submitSubject() {
     const name = newName.trim()
     if (!name) return
-    await createSubject(uid, name, newColor)
+    await createSubject(workspace.id, name, newColor)
     setNewName('')
     setNewColor(SUBJECT_COLORS[0])
     setAdding(false)
@@ -61,6 +72,14 @@ export function Sidebar({
 
   return (
     <aside className="sidebar">
+      <WorkspaceSwitcher
+        uid={uid}
+        workspaces={workspaces}
+        current={workspace}
+        onSelect={onSelectWorkspace}
+        onCreate={onCreateWorkspace}
+        onManage={onManageWorkspace}
+      />
       <div className="sidebar-actions">
         <button className="btn btn-primary btn-block btn-new" onClick={onNewNote}>
           <PlusIcon />

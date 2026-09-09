@@ -36,7 +36,9 @@ Firebase setup (once per environment):
 3. Create a **Firestore** database and deploy the rules: `firebase deploy --only firestore:rules`.
 4. Hosting deploy: `npm run build` in `frontend/`, then `firebase deploy --only hosting`.
 
-Data lives under `users/{uid}`: `notes`, `subjects`, and `mcpClients` subcollections. The `premium` flag on the user doc is server-managed (set it from the Firebase console); Firestore rules prevent clients from flipping it.
+Notes and subjects live in **workspaces**: `workspaces/{wsId}` holds `name`, `ownerId`, `memberIds`, and a `members` map, with `notes` and `subjects` subcollections. Every user gets a default workspace whose id is their uid, created on first sign-in. The owner can share a workspace with other accounts by email; every member can add, edit, and delete any note in it, in the app and through MCP (tools take an optional `workspace`, and `list_workspaces` shows what the user can reach). Membership changes go through the backend (`/api/workspaces/*`); the app creates and renames workspaces directly under Firestore rules.
+
+`users/{uid}` keeps the profile (`premium` is server-managed — set it from the Firebase console; rules prevent clients from flipping it) and the `mcpClients` subcollection. Data written before workspaces existed lives under `users/{uid}/notes` and `subjects`; copy it into the default workspaces once with `npm run migrate:workspaces -- --apply` in `backend/` (dry run without `--apply`).
 
 ## Docs
 

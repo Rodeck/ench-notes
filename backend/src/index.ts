@@ -4,6 +4,7 @@ import formbody from '@fastify/formbody'
 import { config, assertProductionConfig } from './config.js'
 import { registerHealthRoutes, httpRequests } from './routes/health.js'
 import { registerSuggestRoutes } from './routes/suggest.js'
+import { registerWorkspaceRoutes } from './routes/workspaces.js'
 import { registerOAuthRoutes } from './oauth/routes.js'
 import { registerMcpRoutes } from './mcp.js'
 
@@ -39,6 +40,7 @@ app.addHook('onResponse', async (req, reply) => {
 
 registerHealthRoutes(app)
 registerSuggestRoutes(app)
+registerWorkspaceRoutes(app)
 registerOAuthRoutes(app)
 registerMcpRoutes(app)
 

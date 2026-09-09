@@ -1,8 +1,17 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
     function isOwner(uid) {
-      return request.auth != null && request.auth.uid == uid;
+      return signedIn() && request.auth.uid == uid;
+    }
+    // Membership check for workspace subcollections: one extra read per
+    // note/subject access, against the parent workspace doc.
+    function memberOf(wsId) {
+      return signedIn()
+        && request.auth.uid in get(/databases/$(database)/documents/workspaces/$(wsId)).data.memberIds;
     }
 
     match /users/{uid} {
@@ -13,16 +22,64 @@ service cloud.firestore {
       allow update: if isOwner(uid)
         && request.resource.data.premium == resource.data.premium;
 
+      // Legacy location (before workspaces). Read-only so the migration can
+      // copy it; new writes go to workspaces/{wsId}/notes.
       match /notes/{noteId} {
-        allow read, write: if isOwner(uid);
+        allow read: if isOwner(uid);
       }
       match /subjects/{subjectId} {
-        allow read, write: if isOwner(uid);
+        allow read: if isOwner(uid);
       }
       // MCP clients are written by the backend (Admin SDK bypasses rules);
       // the app may list them and revoke (delete) them.
       match /mcpClients/{clientId} {
         allow read, delete: if isOwner(uid);
+      }
+    }
+
+    // Workspaces: notes + subjects live here. Every member (memberIds) can
+    // read the workspace and freely add/edit/delete its notes and subjects.
+    // Membership itself (members, memberIds, ownerId) is only changed by the
+    // backend, which resolves invitee emails with the Admin SDK.
+    match /workspaces/{wsId} {
+      function isMember() {
+        return signedIn() && request.auth.uid in resource.data.memberIds;
+      }
+      function isWsOwner() {
+        return signedIn() && resource.data.ownerId == request.auth.uid;
+      }
+
+      allow list: if isMember();
+      // get: members only — except that a user may probe their own default
+      // workspace (id == uid) before it exists, so first sign-in can create it.
+      allow get: if signedIn()
+        && (
+          (resource == null && wsId == request.auth.uid)
+          || (resource != null && request.auth.uid in resource.data.memberIds)
+        );
+      // A user may create a workspace they own, with themselves as the only
+      // member. The default workspace uses the uid as its id.
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.memberIds == [request.auth.uid]
+        && request.resource.data.members.keys().hasOnly([request.auth.uid])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60;
+      // Owner may rename; membership fields are backend-only.
+      allow update: if isWsOwner()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60;
+      // Deleting must also remove subcollections: backend only.
+      allow delete: if false;
+
+      match /notes/{noteId} {
+        allow read, write: if memberOf(wsId);
+      }
+      match /subjects/{subjectId} {
+        allow read, write: if memberOf(wsId);
       }
     }
   }

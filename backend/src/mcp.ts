@@ -13,38 +13,140 @@ import {
   noteForLlm,
   searchNotes,
   updateNote,
+  type NoteDoc,
 } from './notes.js'
+import { defaultWorkspaceId, listWorkspacesFor, type WorkspaceDoc } from './workspaces.js'
 
 /* MCP server (Streamable HTTP, stateless: one transport per request).
-   Bearer tokens come from the OAuth layer in ./oauth. */
+   Bearer tokens come from the OAuth layer in ./oauth.
+
+   Notes live in workspaces. A user always has a default (personal) workspace
+   and may belong to workspaces other users shared with them. Every tool
+   resolves its target workspace from the caller's memberships, so a token
+   can never reach a workspace its user is not a member of. */
 
 function text(data: unknown) {
   return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] }
 }
 
+const workspaceParam = z
+  .string()
+  .optional()
+  .describe(
+    'Workspace name or id (see list_workspaces). Omit to use the default workspace for writes, ' +
+      'or to search across every workspace the user can access for reads.',
+  )
+
+function workspaceForLlm(w: WorkspaceDoc, uid: string) {
+  return {
+    id: w.id,
+    name: w.name,
+    is_default: w.id === defaultWorkspaceId(uid),
+    role: w.ownerId === uid ? 'owner' : 'member',
+    shared: w.memberIds.length > 1,
+    members: Object.values(w.members).map((m) => m.displayName || m.email),
+  }
+}
+
+/** The caller's workspaces, loaded once per request and used to resolve
+    every workspace reference. Anything not in this list is invisible. */
+class WorkspaceScope {
+  private cache: WorkspaceDoc[] | null = null
+  constructor(private uid: string) {}
+
+  async all(): Promise<WorkspaceDoc[]> {
+    if (!this.cache) this.cache = await listWorkspacesFor(this.uid)
+    return this.cache
+  }
+
+  /** Resolve by id or case-insensitive name; the default workspace when
+      omitted; null when nothing the user can access matches. */
+  async resolve(ref: string | undefined): Promise<WorkspaceDoc | null> {
+    const all = await this.all()
+    if (!ref || !ref.trim()) return all.find((w) => w.id === defaultWorkspaceId(this.uid)) ?? all[0] ?? null
+    const id = ref.trim()
+    const needle = id.toLowerCase()
+    return all.find((w) => w.id === id) ?? all.find((w) => w.name.toLowerCase() === needle) ?? null
+  }
+
+  /** Workspaces a read should cover: the named one, or all of them. */
+  async forRead(ref: string | undefined): Promise<WorkspaceDoc[] | null> {
+    if (!ref || !ref.trim()) return this.all()
+    const one = await this.resolve(ref)
+    return one ? [one] : null
+  }
+
+  /** Find a note by id in the named workspace, or in any accessible one. */
+  async locateNote(
+    noteId: string,
+    ref: string | undefined,
+  ): Promise<{ ws: WorkspaceDoc; note: NoteDoc } | null> {
+    const candidates = await this.forRead(ref)
+    if (!candidates) return null
+    for (const ws of candidates) {
+      const note = await getNote(ws.id, noteId)
+      if (note) return { ws, note }
+    }
+    return null
+  }
+}
+
+const workspaceNotFound = (ref: string | undefined) =>
+  text({
+    error: 'workspace_not_found',
+    message: `No accessible workspace matches "${ref}". Call list_workspaces to see the options.`,
+  })
+
 function buildServer(ctx: McpAuthContext): McpServer {
-  const server = new McpServer({ name: 'ench-notes', version: '0.1.0' })
+  const server = new McpServer({ name: 'ench-notes', version: '0.2.0' })
   const canWrite = ctx.scopes.includes('write')
+  const scope = new WorkspaceScope(ctx.uid)
+
+  server.registerTool(
+    'list_workspaces',
+    {
+      description:
+        'List the workspaces the user can access. Each user has a default personal workspace; ' +
+        'other workspaces may be shared with them by other users (a shared list of notes). ' +
+        'Pass a workspace name or id to the other tools to target it. Reads cover all workspaces ' +
+        'by default; writes go to the personal one by default.',
+      inputSchema: {},
+    },
+    async () => text((await scope.all()).map((w) => workspaceForLlm(w, ctx.uid))),
+  )
 
   server.registerTool(
     'search_notes',
     {
       description:
-        "Search the user's personal notes by keyword (matches title, body, and tags). " +
+        "Search the user's notes by keyword (matches title, body, and tags). " +
         'Use this to recall what the user knows, has decided, or is working on — their notes ' +
         'are organized by subject (projects, lifestyle, …) and act as your long-term memory about them. ' +
-        'Call with an empty query to list the most recently updated notes.',
+        'Call with an empty query to list the most recently updated notes. Searches every workspace the ' +
+        'user can access unless a workspace is given; each result names its workspace.',
       inputSchema: {
         query: z.string().describe('Keywords to search for; empty string lists recent notes'),
+        workspace: workspaceParam,
         limit: z.number().int().min(1).max(50).optional().describe('Max results (default 10)'),
       },
     },
-    async ({ query, limit }) => {
-      const subjects = await listSubjects(ctx.uid)
-      const notes = query.trim()
-        ? await searchNotes(ctx.uid, query, limit ?? 10)
-        : await listNotes(ctx.uid, limit ?? 10)
-      return text(notes.map((n) => noteForLlm(n, subjects)))
+    async ({ query, workspace, limit }) => {
+      const targets = await scope.forRead(workspace)
+      if (!targets) return workspaceNotFound(workspace)
+      const max = limit ?? 10
+      const perWorkspace = await Promise.all(
+        targets.map(async (ws) => {
+          const subjects = await listSubjects(ws.id)
+          const notes = query.trim() ? await searchNotes(ws.id, query, max) : await listNotes(ws.id, max)
+          return notes.map((n) => ({ note: noteForLlm(n, subjects, ws), t: n.updatedAt?.toMillis() ?? 0 }))
+        }),
+      )
+      const merged = perWorkspace
+        .flat()
+        .sort((a, b) => b.t - a.t)
+        .slice(0, max)
+        .map((x) => x.note)
+      return text(merged)
     },
   )
 
@@ -52,12 +154,12 @@ function buildServer(ctx: McpAuthContext): McpServer {
     'get_note',
     {
       description: 'Fetch one note in full by its id (ids come from search_notes results).',
-      inputSchema: { note_id: z.string() },
+      inputSchema: { note_id: z.string(), workspace: workspaceParam },
     },
-    async ({ note_id }) => {
-      const note = await getNote(ctx.uid, note_id)
-      if (!note) return text({ error: 'note_not_found' })
-      return text(noteForLlm(note, await listSubjects(ctx.uid)))
+    async ({ note_id, workspace }) => {
+      const hit = await scope.locateNote(note_id, workspace)
+      if (!hit) return text({ error: 'note_not_found' })
+      return text(noteForLlm(hit.note, await listSubjects(hit.ws.id), hit.ws))
     },
   )
 
@@ -65,11 +167,22 @@ function buildServer(ctx: McpAuthContext): McpServer {
     'list_subjects',
     {
       description:
-        "List the user's subjects (their note categories, e.g. projects or life areas) with ids and names. " +
-        'Use subject names when creating or filing notes so they land in the right place.',
-      inputSchema: {},
+        "List the user's subjects (their note categories, e.g. projects or life areas) with ids and names, " +
+        'grouped by workspace. Use subject names when creating or filing notes so they land in the right place.',
+      inputSchema: { workspace: workspaceParam },
     },
-    async () => text((await listSubjects(ctx.uid)).map((s) => ({ id: s.id, name: s.name }))),
+    async ({ workspace }) => {
+      const targets = await scope.forRead(workspace)
+      if (!targets) return workspaceNotFound(workspace)
+      const out = await Promise.all(
+        targets.map(async (ws) => ({
+          workspace: ws.name,
+          workspace_id: ws.id,
+          subjects: (await listSubjects(ws.id)).map((s) => ({ id: s.id, name: s.name })),
+        })),
+      )
+      return text(out)
+    },
   )
 
   if (canWrite) {
@@ -79,17 +192,22 @@ function buildServer(ctx: McpAuthContext): McpServer {
         description:
           'Create a new note for the user. Body is markdown. Give it a clear title and file it ' +
           'under an existing subject when one fits (see list_subjects); a new subject name creates that subject. ' +
-          'Use this to remember durable facts, decisions, and context the user will want later.',
+          'The note goes to the default personal workspace unless a workspace is given — use a shared ' +
+          'workspace when the note belongs to that shared list. Use this to remember durable facts, ' +
+          'decisions, and context the user will want later.',
         inputSchema: {
           title: z.string().min(1),
           body: z.string().describe('Markdown content'),
           subject: z.string().optional().describe('Subject name to file the note under'),
           tags: z.array(z.string()).optional().describe('Short lowercase tags'),
+          workspace: workspaceParam,
         },
       },
-      async ({ title, body, subject, tags }) => {
-        const note = await createNote(ctx.uid, ctx.clientName, { title, body, subjectName: subject, tags })
-        return text(noteForLlm(note, await listSubjects(ctx.uid)))
+      async ({ title, body, subject, tags, workspace }) => {
+        const ws = await scope.resolve(workspace)
+        if (!ws) return workspaceNotFound(workspace)
+        const note = await createNote(ws.id, ctx.clientName, { title, body, subjectName: subject, tags })
+        return text(noteForLlm(note, await listSubjects(ws.id), ws))
       },
     )
 
@@ -105,17 +223,20 @@ function buildServer(ctx: McpAuthContext): McpServer {
           body: z.string().optional(),
           subject: z.string().optional(),
           tags: z.array(z.string()).optional(),
+          workspace: workspaceParam,
         },
       },
-      async ({ note_id, ...patch }) => {
-        const note = await updateNote(ctx.uid, ctx.clientName, note_id, {
+      async ({ note_id, workspace, ...patch }) => {
+        const hit = await scope.locateNote(note_id, workspace)
+        if (!hit) return text({ error: 'note_not_found' })
+        const note = await updateNote(hit.ws.id, ctx.clientName, note_id, {
           title: patch.title,
           body: patch.body,
           subjectName: patch.subject,
           tags: patch.tags,
         })
         if (!note) return text({ error: 'note_not_found' })
-        return text(noteForLlm(note, await listSubjects(ctx.uid)))
+        return text(noteForLlm(note, await listSubjects(hit.ws.id), hit.ws))
       },
     )
 
@@ -123,11 +244,13 @@ function buildServer(ctx: McpAuthContext): McpServer {
       'delete_note',
       {
         description: 'Permanently delete a note. Only do this when the user clearly asks for it.',
-        inputSchema: { note_id: z.string() },
+        inputSchema: { note_id: z.string(), workspace: workspaceParam },
       },
-      async ({ note_id }) => {
-        const ok = await deleteNote(ctx.uid, note_id)
-        return text(ok ? { deleted: note_id } : { error: 'note_not_found' })
+      async ({ note_id, workspace }) => {
+        const hit = await scope.locateNote(note_id, workspace)
+        if (!hit) return text({ error: 'note_not_found' })
+        const ok = await deleteNote(hit.ws.id, note_id)
+        return text(ok ? { deleted: note_id, workspace: hit.ws.name } : { error: 'note_not_found' })
       },
     )
   }
