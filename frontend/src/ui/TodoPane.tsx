@@ -13,7 +13,7 @@ import { TodoTable } from './TodoTable'
 import { initials } from '../data/palette'
 import { agoTime } from '../data/time'
 import { ConfirmDialog } from './ConfirmDialog'
-import { PlusIcon, SparkIcon } from './icons'
+import { MenuIcon, PlusIcon, SparkIcon } from './icons'
 
 interface Props {
   wsId: string
@@ -21,6 +21,8 @@ interface Props {
   list: TodoList
   onDeleted: () => void
   onToast: (msg: string) => void
+  /** Opens the sidebar drawer (button only shows below 1024px). */
+  onOpenNav: () => void
 }
 
 /** Today's date as YYYY-MM-DD in local time (the format items store). */
@@ -44,7 +46,7 @@ export function dueLabel(due: string, done: boolean): { text: string; tone: 'ove
   return { text: short, tone: 'normal' }
 }
 
-export function TodoPane({ wsId, workspace, list, onDeleted, onToast }: Props) {
+export function TodoPane({ wsId, workspace, list, onDeleted, onToast, onOpenNav }: Props) {
   const items = useTodoItems(wsId, list.id)
   const [name, setName] = useState(list.name)
   const [draft, setDraft] = useState('')
@@ -84,6 +86,9 @@ export function TodoPane({ wsId, workspace, list, onDeleted, onToast }: Props) {
   return (
     <section className={`todo-pane${list.kind === 'table' ? ' is-table' : ''}`}>
       <header className="todo-head">
+        <button className="btn btn-icon btn-secondary nav-btn" aria-label="Open menu" onClick={onOpenNav}>
+          <MenuIcon />
+        </button>
         <input
           className="todo-name"
           value={name}
@@ -95,21 +100,23 @@ export function TodoPane({ wsId, workspace, list, onDeleted, onToast }: Props) {
             if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
           }}
         />
-        <span className="notelist-count">
-          {open.length} open{done.length > 0 ? ` · ${done.length} done` : ''}
-        </span>
-        <div className="seg seg-sm" style={{ marginLeft: 'auto' }} role="radiogroup" aria-label="View">
-          {(['list', 'table'] as const).map((k) => (
-            <label key={k} className="seg-opt" data-tip={k === 'table' ? 'Table with shared filters and sorting' : 'A simple checklist'}>
-              <input
-                type="radio"
-                name={`kind-${list.id}`}
-                checked={(list.kind ?? 'list') === k}
-                onChange={() => void setTodoListKind(wsId, list.id, k)}
-              />
-              {k === 'list' ? 'List' : 'Table'}
-            </label>
-          ))}
+        <div className="todo-head-sub">
+          <span className="notelist-count">
+            {open.length} open{done.length > 0 ? ` · ${done.length} done` : ''}
+          </span>
+          <div className="seg seg-sm" style={{ marginLeft: 'auto' }} role="radiogroup" aria-label="View">
+            {(['list', 'table'] as const).map((k) => (
+              <label key={k} className="seg-opt" data-tip={k === 'table' ? 'Table with shared filters and sorting' : 'A simple checklist'}>
+                <input
+                  type="radio"
+                  name={`kind-${list.id}`}
+                  checked={(list.kind ?? 'list') === k}
+                  onChange={() => void setTodoListKind(wsId, list.id, k)}
+                />
+                {k === 'list' ? 'List' : 'Table'}
+              </label>
+            ))}
+          </div>
         </div>
         <span style={{ position: 'relative' }}>
           <button className="btn btn-icon btn-secondary dots-btn" aria-label="List actions" data-tip="List actions" onClick={() => setMenu((v) => !v)}>

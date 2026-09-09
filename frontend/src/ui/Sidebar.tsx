@@ -3,7 +3,7 @@ import type { Note, Subject, TodoList, TodoListKind, Workspace } from '../data/t
 import { ALL_NOTES_COLOR, SUBJECT_COLORS, initials, tagHue } from '../data/palette'
 import { createSubject, createTodoList } from '../data/store'
 import { useAuth } from '../auth'
-import { ChevronRightIcon, ListIcon, PlusIcon, SearchIcon, TableIcon } from './icons'
+import { ChevronRightIcon, CloseIcon, ListIcon, PlusIcon, SearchIcon, TableIcon } from './icons'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 
 interface Props {
@@ -13,6 +13,8 @@ interface Props {
   onSelectWorkspace: (id: string) => void
   onCreateWorkspace: () => void
   onManageWorkspace: () => void
+  /** Closes the sidebar when it is shown as a drawer (below 1024px). */
+  onClose: () => void
   subjects: Subject[]
   notes: Note[]
   todoLists: TodoList[]
@@ -36,6 +38,7 @@ export function Sidebar({
   onSelectWorkspace,
   onCreateWorkspace,
   onManageWorkspace,
+  onClose,
   subjects,
   notes,
   todoLists,
@@ -94,6 +97,14 @@ export function Sidebar({
 
   return (
     <aside className="sidebar">
+      <div className="drawer-head">
+        <span className="topbar-brand">
+          ench <em>notes</em>
+        </span>
+        <button className="btn btn-icon btn-secondary" aria-label="Close menu" onClick={onClose}>
+          <CloseIcon />
+        </button>
+      </div>
       <WorkspaceSwitcher
         uid={uid}
         workspaces={workspaces}

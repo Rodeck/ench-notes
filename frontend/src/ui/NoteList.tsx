@@ -1,7 +1,7 @@
 import type { Note, Subject } from '../data/types'
 import { relTime } from '../data/time'
 import { tagHue } from '../data/palette'
-import { SortDownIcon, SparkIcon } from './icons'
+import { MenuIcon, SortDownIcon, SparkIcon } from './icons'
 
 interface Props {
   title: string
@@ -13,6 +13,8 @@ interface Props {
   onToggleSort: () => void
   onSelect: (id: string) => void
   onNewNote: () => void
+  /** Opens the sidebar drawer (button only shows below 1024px). */
+  onOpenNav: () => void
 }
 
 /** First non-heading, non-code text of the body as a plain excerpt. */
@@ -36,12 +38,16 @@ export function NoteList({
   onToggleSort,
   onSelect,
   onNewNote,
+  onOpenNav,
 }: Props) {
   const subjectById = new Map(subjects.map((s) => [s.id, s]))
 
   return (
     <section className="notelist">
       <header className="notelist-head">
+        <button className="btn btn-icon btn-secondary nav-btn" aria-label="Open menu" onClick={onOpenNav}>
+          <MenuIcon />
+        </button>
         <h4>{title}</h4>
         <span className="notelist-count">
           {notes.length} {notes.length === 1 ? 'note' : 'notes'}

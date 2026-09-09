@@ -108,3 +108,27 @@ export function TableIcon({ size = 13 }: { size?: number }) {
     </svg>
   )
 }
+
+export function MenuIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} {...base}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </svg>
+  )
+}
+
+export function ChevronLeftIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} {...base}>
+      <path d="m15 6-6 6 6 6" />
+    </svg>
+  )
+}
+
+export function CloseIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} {...base}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  )
+}

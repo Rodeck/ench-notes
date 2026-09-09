@@ -17,6 +17,7 @@ import { SearchPalette } from './SearchPalette'
 import { WorkspaceDialog } from './WorkspaceDialog'
 import { NewWorkspaceDialog } from './NewWorkspaceDialog'
 import { TodoPane } from './TodoPane'
+import { MOBILE_QUERY, useMediaQuery } from './useMediaQuery'
 
 interface Props {
   uid: string
@@ -147,6 +148,9 @@ function WorkspaceNotes({
   const [tagFilter, setTagFilter] = useState<string | null>(null)
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
+  // Below 1024px the sidebar is an off-canvas drawer; this is whether it is open.
+  const [navOpen, setNavOpen] = useState(false)
+  const mobile = useMediaQuery(MOBILE_QUERY)
 
   const visible = useMemo(() => {
     if (!notes) return []
@@ -157,16 +161,28 @@ function WorkspaceNotes({
     )
   }, [notes, subjectFilter, tagFilter])
 
-  // Keep a valid selection as filters and data change.
+  // Keep a valid selection as filters and data change. On desktop the first
+  // visible note fills the editor pane; on a phone the editor is its own
+  // screen, so nothing opens until the user taps a note.
   useEffect(() => {
     if (visible.length === 0) {
       setSelectedNoteId(null)
       return
     }
-    if (!selectedNoteId || !visible.some((n) => n.id === selectedNoteId)) {
-      setSelectedNoteId(visible[0].id)
+    const valid = selectedNoteId !== null && visible.some((n) => n.id === selectedNoteId)
+    if (valid) return
+    setSelectedNoteId(mobile ? null : visible[0].id)
+  }, [visible, selectedNoteId, mobile])
+
+  // Escape closes the drawer.
+  useEffect(() => {
+    if (!navOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setNavOpen(false)
     }
-  }, [visible, selectedNoteId])
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navOpen])
 
   // ⌘K / Ctrl+K opens search.
   useEffect(() => {
@@ -202,35 +218,73 @@ function WorkspaceNotes({
     if (listId && todoLists && !todoLists.some((l) => l.id === listId)) setListId(null)
   }, [listId, todoLists])
 
+  const closeNav = () => setNavOpen(false)
+  /** Picking something in the drawer shows the matching list screen on a phone. */
+  const showList = () => {
+    closeNav()
+    if (mobile) setSelectedNoteId(null)
+  }
+
+  const cls = [
+    'workspace',
+    openNote && !openList ? 'show-editor' : '',
+    openList ? 'show-todo' : '',
+    navOpen ? 'nav-open' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
   return (
-    <div className={`workspace${openNote && !openList ? ' show-editor' : ''}${openList ? ' show-todo' : ''}`}>
+    <div className={cls}>
+      {navOpen && <div className="nav-backdrop" onClick={closeNav} />}
       <Sidebar
         uid={uid}
         workspace={workspace}
         workspaces={workspaces}
         onSelectWorkspace={onSelectWorkspace}
-        onCreateWorkspace={onCreateWorkspace}
-        onManageWorkspace={onManage}
+        onCreateWorkspace={() => {
+          closeNav()
+          onCreateWorkspace()
+        }}
+        onManageWorkspace={() => {
+          closeNav()
+          onManage()
+        }}
+        onClose={closeNav}
         subjects={subjects ?? []}
         notes={notes ?? []}
         todoLists={todoLists ?? []}
         todoCounts={todoCounts}
         selectedList={listId}
-        onSelectList={setListId}
+        onSelectList={(id) => {
+          showList()
+          setListId(id)
+        }}
         selectedSubject={subjectFilter}
         onSelectSubject={(id) => {
+          showList()
           setListId(null)
           setSubjectFilter(id)
           setTagFilter(null)
         }}
         tagFilter={tagFilter}
         onTagFilter={(t) => {
+          showList()
           setListId(null)
           setTagFilter(t)
         }}
-        onNewNote={() => void newNote()}
-        onOpenSearch={() => setSearchOpen(true)}
-        onOpenSettings={onOpenSettings}
+        onNewNote={() => {
+          closeNav()
+          void newNote()
+        }}
+        onOpenSearch={() => {
+          closeNav()
+          setSearchOpen(true)
+        }}
+        onOpenSettings={() => {
+          closeNav()
+          onOpenSettings()
+        }}
       />
       {openList ? (
         <TodoPane
@@ -240,6 +294,7 @@ function WorkspaceNotes({
           list={openList}
           onDeleted={() => setListId(null)}
           onToast={onToast}
+          onOpenNav={() => setNavOpen(true)}
         />
       ) : loading ? (
         <section className="notelist">
@@ -258,6 +313,7 @@ function WorkspaceNotes({
           onToggleSort={() => setSort((s) => (s === 'updatedAt' ? 'createdAt' : 'updatedAt'))}
           onSelect={setSelectedNoteId}
           onNewNote={() => void newNote()}
+          onOpenNav={() => setNavOpen(true)}
         />
       )}
       {openList ? null : openNote ? (
@@ -268,6 +324,8 @@ function WorkspaceNotes({
           subjects={subjects ?? []}
           onDeleted={() => setSelectedNoteId(null)}
           onToast={onToast}
+          backLabel={listTitle}
+          onBack={() => setSelectedNoteId(null)}
         />
       ) : (
         <section className="editor-pane">
