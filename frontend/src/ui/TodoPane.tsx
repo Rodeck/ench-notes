@@ -5,9 +5,11 @@ import {
   deleteTodoItem,
   deleteTodoList,
   renameTodoList,
+  setTodoListKind,
   updateTodoItem,
   useTodoItems,
 } from '../data/store'
+import { TodoTable } from './TodoTable'
 import { initials } from '../data/palette'
 import { agoTime } from '../data/time'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -80,7 +82,7 @@ export function TodoPane({ wsId, workspace, list, onDeleted, onToast }: Props) {
   }
 
   return (
-    <section className="todo-pane">
+    <section className={`todo-pane${list.kind === 'table' ? ' is-table' : ''}`}>
       <header className="todo-head">
         <input
           className="todo-name"
@@ -96,7 +98,20 @@ export function TodoPane({ wsId, workspace, list, onDeleted, onToast }: Props) {
         <span className="notelist-count">
           {open.length} open{done.length > 0 ? ` · ${done.length} done` : ''}
         </span>
-        <span style={{ position: 'relative', marginLeft: 'auto' }}>
+        <div className="seg seg-sm" style={{ marginLeft: 'auto' }} role="radiogroup" aria-label="View">
+          {(['list', 'table'] as const).map((k) => (
+            <label key={k} className="seg-opt" title={k === 'table' ? 'Table with shared filters and sorting' : 'Checklist'}>
+              <input
+                type="radio"
+                name={`kind-${list.id}`}
+                checked={(list.kind ?? 'list') === k}
+                onChange={() => void setTodoListKind(wsId, list.id, k)}
+              />
+              {k === 'list' ? 'List' : 'Table'}
+            </label>
+          ))}
+        </div>
+        <span style={{ position: 'relative' }}>
           <button className="btn btn-icon btn-secondary dots-btn" aria-label="List actions" onClick={() => setMenu((v) => !v)}>
             ⋯
           </button>
@@ -135,6 +150,8 @@ export function TodoPane({ wsId, workspace, list, onDeleted, onToast }: Props) {
             <p className="set-dim" style={{ padding: '8px 4px' }}>
               Loading…
             </p>
+          ) : list.kind === 'table' ? (
+            <TodoTable wsId={wsId} list={list} items={items} members={members} onToast={onToast} />
           ) : items.length === 0 ? (
             <div className="empty" style={{ padding: 'var(--space-8) 0' }}>
               <div className="blob">✓</div>

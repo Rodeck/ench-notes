@@ -18,7 +18,7 @@ import {
 import type { User } from 'firebase/auth'
 import { db, BACKEND_URL } from '../firebase'
 import { auth } from '../firebase'
-import type { McpClient, Note, Subject, TodoItem, TodoList, Workspace } from './types'
+import type { McpClient, Note, Subject, TodoItem, TodoList, TodoListKind, TodoTableView, Workspace } from './types'
 
 /* Notes and subjects live under workspaces/{wsId}. Every member of a
    workspace can read and write them (Firestore rules check memberIds).
@@ -216,10 +216,11 @@ export function useTodoItems(wsId: string, listId: string) {
   return items
 }
 
-export async function createTodoList(wsId: string, name: string): Promise<string> {
+export async function createTodoList(wsId: string, name: string, kind: TodoListKind = 'list'): Promise<string> {
   const u = auth().currentUser
   const ref = await addDoc(todoListsCol(wsId), {
     name: name.trim(),
+    kind,
     createdAt: serverTimestamp(),
     createdBy: u?.uid ?? '',
     createdByName: editorName(),
@@ -229,6 +230,24 @@ export async function createTodoList(wsId: string, name: string): Promise<string
 
 export async function renameTodoList(wsId: string, listId: string, name: string) {
   await updateDoc(doc(db(), 'workspaces', wsId, 'todoLists', listId), { name: name.trim() })
+}
+
+export async function setTodoListKind(wsId: string, listId: string, kind: TodoListKind) {
+  await updateDoc(doc(db(), 'workspaces', wsId, 'todoLists', listId), { kind })
+}
+
+/** Update the shared table view. Dotted paths so two members changing
+    different settings at the same time do not overwrite each other. */
+export async function setTodoTableView(
+  wsId: string,
+  listId: string,
+  patch: { sort?: TodoTableView['sort']; filters?: Partial<TodoTableView['filters']> },
+) {
+  const update: Record<string, string | null | TodoTableView['sort']> = {}
+  if (patch.sort) update['table.sort'] = patch.sort
+  for (const [k, v] of Object.entries(patch.filters ?? {})) update[`table.filters.${k}`] = v ?? null
+  if (Object.keys(update).length === 0) return
+  await updateDoc(doc(db(), 'workspaces', wsId, 'todoLists', listId), update)
 }
 
 /** Delete the list and its items (the client has no recursive delete). */

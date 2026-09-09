@@ -99,3 +99,12 @@ export function ListIcon({ size = 13 }: { size?: number }) {
     </svg>
   )
 }
+
+export function TableIcon({ size = 13 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} {...base} style={{ opacity: 0.7, flex: 'none' }}>
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <path d="M3 10h18M3 15h18M10 4v16" />
+    </svg>
+  )
+}

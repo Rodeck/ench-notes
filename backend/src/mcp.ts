@@ -291,7 +291,8 @@ function buildServer(ctx: McpAuthContext): McpServer {
       description:
         'Fetch a todo list with its items: title, done, assignee, due date, who added it. ' +
         'Open items come first (earliest due date first), then done ones. Also lists the workspace ' +
-        'members who can be assignees.',
+        'members who can be assignees. Table lists include shared_view (the filters and sort members ' +
+        'see in the app); items are returned unfiltered regardless.',
       inputSchema: {
         list: listParam,
         workspace: workspaceParam,
@@ -317,13 +318,18 @@ function buildServer(ctx: McpAuthContext): McpServer {
       {
         description:
           'Create a new todo list. Goes to the default personal workspace unless a workspace is given; ' +
-          'use a shared workspace for a list several people work on.',
-        inputSchema: { name: z.string().min(1), workspace: workspaceParam },
+          'use a shared workspace for a list several people work on. kind "list" is a simple checklist; ' +
+          '"table" shows columns with filters and sorting that all members share.',
+        inputSchema: {
+          name: z.string().min(1),
+          kind: z.enum(['list', 'table']).optional().describe('Presentation in the app (default "list")'),
+          workspace: workspaceParam,
+        },
       },
-      async ({ name, workspace }) => {
+      async ({ name, kind, workspace }) => {
         const ws = await scope.resolve(workspace)
         if (!ws) return workspaceNotFound(workspace)
-        const list = await createTodoList(ws.id, actorFor(ctx, ws), name)
+        const list = await createTodoList(ws.id, actorFor(ctx, ws), name, kind ?? 'list')
         return text(listForLlm(list, [], ws))
       },
     )

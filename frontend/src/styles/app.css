@@ -565,6 +565,36 @@
 }
 .todo-done-toggle:hover { color: var(--color-accent); }
 
+/* ── todo table view ─────────────────────────────────────────────────── */
+.todo-pane.is-table .todo-inner { max-width: 1100px; }
+.seg-sm .seg-opt { padding: 4px 10px; font-size: 12px; }
+.side-hint { font-size: 11.5px; padding: 0 4px; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.todo-table-wrap { display: flex; flex-direction: column; gap: var(--space-3); }
+.todo-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.pill-select {
+  font: inherit; font-size: 12px; color: inherit; cursor: pointer;
+  padding: 5px 28px 5px 12px; border-radius: 999px; border: 1px solid var(--color-divider);
+  background: transparent; appearance: none; -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%; background-size: 5px 5px; background-repeat: no-repeat;
+}
+.pill-select:hover { border-color: var(--color-accent); }
+.pill-select option { color: var(--color-text); background: var(--color-surface); }
+.todo-toolbar-note { margin-left: auto; font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 50%, transparent); }
+.todo-table { width: 100%; }
+.todo-table th { white-space: nowrap; }
+.th-sort {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer; font: inherit; font-size: inherit;
+  font-weight: inherit; color: inherit; border: 0; background: transparent; padding: 0;
+}
+.th-sort:hover, .th-sort.on { color: var(--color-accent); }
+.th-dir { font-size: 11px; }
+.todo-table td { vertical-align: middle; }
+.todo-table .td-title { min-width: 240px; }
+.todo-table tr.done .todo-title { text-decoration: line-through; opacity: .55; }
+.todo-table .todo-x { opacity: .35; }
+.todo-table tr:hover .todo-x { opacity: .6; }
+
 /* ── toast ───────────────────────────────────────────────────────────── */
 .toast {
   position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: 200;

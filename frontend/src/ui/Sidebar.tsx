@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import type { Note, Subject, TodoList, Workspace } from '../data/types'
+import type { Note, Subject, TodoList, TodoListKind, Workspace } from '../data/types'
 import { ALL_NOTES_COLOR, SUBJECT_COLORS, initials, tagHue } from '../data/palette'
 import { createSubject, createTodoList } from '../data/store'
 import { useAuth } from '../auth'
-import { ChevronRightIcon, ListIcon, PlusIcon, SearchIcon } from './icons'
+import { ChevronRightIcon, ListIcon, PlusIcon, SearchIcon, TableIcon } from './icons'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 
 interface Props {
@@ -56,6 +56,7 @@ export function Sidebar({
   const [newColor, setNewColor] = useState(SUBJECT_COLORS[0])
   const [addingList, setAddingList] = useState(false)
   const [newListName, setNewListName] = useState('')
+  const [newListKind, setNewListKind] = useState<TodoListKind>('list')
 
   const counts = useMemo(() => {
     const m = new Map<string, number>()
@@ -75,8 +76,9 @@ export function Sidebar({
   async function submitList() {
     const name = newListName.trim()
     if (!name) return
-    const id = await createTodoList(workspace.id, name)
+    const id = await createTodoList(workspace.id, name, newListKind)
     setNewListName('')
+    setNewListKind('list')
     setAddingList(false)
     onSelectList(id)
   }
@@ -174,7 +176,7 @@ export function Sidebar({
             className={`subj-btn${selectedList === l.id ? ' on' : ''}`}
             onClick={() => onSelectList(l.id)}
           >
-            <ListIcon />
+            {l.kind === 'table' ? <TableIcon /> : <ListIcon />}
             <span className="subj-name">{l.name}</span>
             <span className="subj-count">{todoCounts.get(l.id) ?? 0}</span>
           </button>
@@ -192,6 +194,19 @@ export function Sidebar({
                 if (e.key === 'Escape') setAddingList(false)
               }}
             />
+            <div className="seg seg-sm" role="radiogroup" aria-label="List kind">
+              {(['list', 'table'] as const).map((k) => (
+                <label key={k} className="seg-opt">
+                  <input type="radio" name="list-kind" checked={newListKind === k} onChange={() => setNewListKind(k)} />
+                  {k === 'list' ? 'List' : 'Table'}
+                </label>
+              ))}
+            </div>
+            <span className="side-hint">
+              {newListKind === 'list'
+                ? 'A simple checklist.'
+                : 'Columns with filters and sorting, shared with everyone.'}
+            </span>
           </div>
         ) : (
           <button className="side-add" onClick={() => setAddingList(true)}>

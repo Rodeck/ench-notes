@@ -170,9 +170,18 @@ await t('create_todo_list in Team', async () => {
   const r = await call('create_todo_list', { name: 'Chores', workspace: 'Team' })
   expect(r.workspace_id === sharedRef.id && r.open === 0 && r.created_by === 'Bob', JSON.stringify(r))
 })
+await t('create_todo_list kind=table exposes shared_view with defaults', async () => {
+  const r = await call('create_todo_list', { name: 'Board', kind: 'table', workspace: 'Team' })
+  expect(r.kind === 'table' && r.shared_view.sort === 'dueDate asc' && r.shared_view.filters.status === 'all', JSON.stringify(r))
+  // Simulate the app storing a shared filter; MCP reflects it with member names.
+  await sharedRef.collection('todoLists').doc(r.id).update({ 'table.filters.status': 'open', 'table.filters.assigneeId': a.uid, 'table.sort': { field: 'title', dir: 'desc' } })
+  const g = await call('get_todo_list', { list: 'Board' })
+  expect(g.shared_view.filters.status === 'open' && g.shared_view.filters.assignee === 'Alice' && g.shared_view.sort === 'title desc', JSON.stringify(g.shared_view))
+  await call('delete_todo_list', { list: 'Board', workspace: 'Team' })
+})
 await t('create_todo_list without workspace -> default', async () => {
   const r = await call('create_todo_list', { name: 'Personal' })
-  expect(r.workspace_id === b.uid, JSON.stringify(r))
+  expect(r.workspace_id === b.uid && r.kind === 'list' && r.shared_view === undefined, JSON.stringify(r))
 })
 let itemId = ''
 await t('add_todo_item with assignee by name + due date, added_by = Bob', async () => {

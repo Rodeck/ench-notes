@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "seed": "node scripts/dev.mjs --seed-only",
-    "test": "firebase emulators:exec --only auth,firestore \"node scripts/run-tests.mjs\"",
-    "test:rules": "firebase emulators:exec --only firestore \"node frontend/tests/firestore-rules.test.mjs\"",
-    "test:e2e": "firebase emulators:exec --only auth,firestore \"node scripts/run-tests.mjs --e2e\""
+    "test": "node scripts/test.mjs",
+    "test:rules": "node scripts/test.mjs --rules",
+    "test:e2e": "node scripts/test.mjs --e2e"
   }
 }

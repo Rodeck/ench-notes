@@ -156,6 +156,33 @@ for (const [id, data] of seedItems) {
   )
 }
 
+// A table list with a shared filter already applied (Bob's open items)
+const choresRef = db().collection('workspaces').doc(ws).collection('todoLists').doc('chores-table')
+await choresRef.set(
+  {
+    name: 'Chores',
+    kind: 'table',
+    table: { sort: { field: 'dueDate', dir: 'asc' }, filters: { status: 'open', assigneeId: null, due: 'any', addedBy: null } },
+    createdAt: now(),
+    createdBy: bob.uid,
+    createdByName: bob.displayName,
+  },
+  { merge: true },
+)
+const chores: Array<[string, Record<string, unknown>]> = [
+  ['vacuum', { title: 'Vacuum the living room', done: false, assigneeId: bob.uid, assigneeName: bob.displayName, dueDate: todayIso, addedBy: alice.uid, addedByName: alice.displayName }],
+  ['laundry', { title: 'Laundry', done: false, assigneeId: alice.uid, assigneeName: alice.displayName, dueDate: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), addedBy: bob.uid, addedByName: bob.displayName }],
+  ['bins', { title: 'Take the bins out', done: false, assigneeId: null, assigneeName: null, dueDate: new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10), addedBy: alice.uid, addedByName: alice.displayName }],
+  ['plants', { title: 'Water the plants', done: true, assigneeId: bob.uid, assigneeName: bob.displayName, dueDate: null, addedBy: bob.uid, addedByName: bob.displayName }],
+  ['garage', { title: 'Sort out the garage', done: false, assigneeId: null, assigneeName: null, dueDate: null, addedBy: bob.uid, addedByName: bob.displayName }],
+]
+for (const [id, data] of chores) {
+  await choresRef.collection('items').doc(id).set(
+    { ...data, doneAt: data.done ? now() : null, createdAt: now(), updatedAt: now(), origin: 'user' },
+    { merge: true },
+  )
+}
+
 // A static MCP bearer token for Alice (read + write), valid for a year, so
 // local MCP clients can skip OAuth. Only meaningful against the emulator.
 await db()
@@ -176,5 +203,5 @@ await db()
   .set({ name: 'Local dev client', scopes: ['read', 'write'], connectedAt: now(), lastUsedAt: null }, { merge: true })
 
 console.log(
-  `seeded ${alice.email} and ${bob.email} (password ${SEED.password}), shared workspace "Family shopping" (+ todo list "Weekend"), MCP token ${SEED.mcpToken}`,
+  `seeded ${alice.email} and ${bob.email} (password ${SEED.password}), shared workspace "Family shopping" (+ todo lists "Weekend" and table "Chores"), MCP token ${SEED.mcpToken}`,
 )

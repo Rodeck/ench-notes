@@ -6,9 +6,31 @@ import type { WorkspaceDoc } from './workspaces.js'
    Mirrors the frontend's data contract. Callers must have verified the user
    is a member of the workspace. MCP writes stamp origin: 'mcp'. */
 
+export type TodoListKind = 'list' | 'table'
+export type TodoSortField = 'title' | 'done' | 'assignee' | 'dueDate' | 'addedBy' | 'createdAt'
+
+/** Table settings, stored on the list doc and shared by every member. */
+export interface TodoTableView {
+  sort: { field: TodoSortField; dir: 'asc' | 'desc' }
+  filters: {
+    status: 'all' | 'open' | 'done'
+    assigneeId: string | null
+    due: 'any' | 'overdue' | 'today' | 'week' | 'none'
+    addedBy: string | null
+  }
+}
+
+export const DEFAULT_TABLE_VIEW: TodoTableView = {
+  sort: { field: 'dueDate', dir: 'asc' },
+  filters: { status: 'all', assigneeId: null, due: 'any', addedBy: null },
+}
+
 export interface TodoListDoc {
   id: string
   name: string
+  /** Simple checklist (default) or a filterable, sortable table. */
+  kind?: TodoListKind
+  table?: Partial<TodoTableView>
   createdAt?: Timestamp
   createdBy: string
   createdByName: string
@@ -69,9 +91,15 @@ export async function resolveTodoList(wsId: string, ref: string): Promise<TodoLi
   return (await listTodoLists(wsId)).find((l) => l.name.toLowerCase() === needle) ?? null
 }
 
-export async function createTodoList(wsId: string, actor: Actor, name: string): Promise<TodoListDoc> {
+export async function createTodoList(
+  wsId: string,
+  actor: Actor,
+  name: string,
+  kind: TodoListKind = 'list',
+): Promise<TodoListDoc> {
   const ref = await listsCol(wsId).add({
     name: name.trim(),
+    kind,
     createdAt: FieldValue.serverTimestamp(),
     createdBy: actor.uid,
     createdByName: actor.name,
@@ -206,18 +234,34 @@ export function itemForLlm(i: TodoItemDoc, list: TodoListDoc, workspace: { id: s
   }
 }
 
-export function listForLlm(
-  l: TodoListDoc,
-  items: TodoItemDoc[],
-  workspace: { id: string; name: string },
-) {
+/** The shared table view with defaults filled in, member ids → names. */
+export function tableViewForLlm(l: TodoListDoc, ws: WorkspaceDoc) {
+  const sort = { ...DEFAULT_TABLE_VIEW.sort, ...(l.table?.sort ?? {}) }
+  const f = { ...DEFAULT_TABLE_VIEW.filters, ...(l.table?.filters ?? {}) }
+  const name = (uid: string | null) => (uid ? ws.members[uid]?.displayName ?? uid : null)
+  return {
+    sort: `${sort.field} ${sort.dir}`,
+    filters: {
+      status: f.status,
+      assignee: f.assigneeId === 'none' ? 'unassigned' : name(f.assigneeId) ?? 'any',
+      due: f.due,
+      added_by: name(f.addedBy) ?? 'any',
+    },
+  }
+}
+
+export function listForLlm(l: TodoListDoc, items: TodoItemDoc[], workspace: WorkspaceDoc) {
   return {
     id: l.id,
     name: l.name,
+    kind: l.kind ?? 'list',
     workspace: workspace.name,
     workspace_id: workspace.id,
     created_by: l.createdByName,
     open: items.filter((i) => !i.done).length,
     done: items.filter((i) => i.done).length,
+    // Table lists carry a shared view: the filters/sort every member sees
+    // in the app. Items returned by the API are never filtered by it.
+    ...(l.kind === 'table' ? { shared_view: tableViewForLlm(l, workspace) } : {}),
   }
 }

@@ -64,9 +64,28 @@ export interface McpClient {
 
 /** A todo list inside a workspace. Items live in a subcollection so several
     members can edit at the same time without overwriting each other. */
+export type TodoListKind = 'list' | 'table'
+export type TodoSortField = 'title' | 'done' | 'assignee' | 'dueDate' | 'addedBy' | 'createdAt'
+
+/** Table settings, stored on the list doc so every member shares them. */
+export interface TodoTableView {
+  sort: { field: TodoSortField; dir: 'asc' | 'desc' }
+  filters: {
+    status: 'all' | 'open' | 'done'
+    /** Member uid, 'none' for unassigned, null for any. */
+    assigneeId: string | null
+    due: 'any' | 'overdue' | 'today' | 'week' | 'none'
+    /** Member uid or null for any. */
+    addedBy: string | null
+  }
+}
+
 export interface TodoList {
   id: string
   name: string
+  /** Simple checklist (default) or a filterable, sortable table. */
+  kind?: TodoListKind
+  table?: Partial<TodoTableView>
   createdAt: Timestamp | null
   createdBy: string
   createdByName: string
