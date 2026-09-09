@@ -10,7 +10,7 @@ A web app for personal notes organized by **subject** (projects, lifestyle, …)
 - Firebase Auth (Google + email/password)
 - MCP server with OAuth for AI assistant connections
 - Premium flag gating LLM tag suggestions (no purchases)
-- Frontend on Firebase Hosting, backend in Docker on VPS
+- Frontend on Firebase Hosting, backend as a Node systemd service on its own VPS
 
 Deferred: mobile apps, payments, Grafana metrics/logs (design keeps them easy to add).
 

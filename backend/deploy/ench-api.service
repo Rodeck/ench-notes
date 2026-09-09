@@ -1,0 +1,30 @@
+[Unit]
+Description=ench-notes API + MCP server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ench
+Group=ench
+WorkingDirectory=/opt/ench/app
+EnvironmentFile=/opt/ench/.env
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=GOOGLE_APPLICATION_CREDENTIALS=/opt/ench/secrets/service-account.json
+ExecStart=/usr/bin/node /opt/ench/app/dist/index.js
+Restart=always
+RestartSec=5
+TimeoutStopSec=15
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/opt/ench
+MemoryMax=512M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target
