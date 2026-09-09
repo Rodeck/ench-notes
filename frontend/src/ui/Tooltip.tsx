@@ -66,7 +66,9 @@ export function TooltipLayer() {
     }
     const onFocus = (e: FocusEvent) => {
       const el = tipTarget(e.target)
-      if (!el) return
+      // Keyboard focus only: a tap focuses buttons too, and the bubble
+      // would then sit there until focus moved.
+      if (!el || !el.matches(':focus-visible')) return
       current.current = el
       show(el)
     }

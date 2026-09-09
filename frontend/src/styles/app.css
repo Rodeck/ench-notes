@@ -20,9 +20,14 @@
 }
 *::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--color-text) 38%, transparent); }
 *::-webkit-scrollbar-corner { background: transparent; }
+/* Touch: no 300ms tap delay, no grey flash on tap. */
+button, a, label, [role="button"] { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+:root { --topbar-h: 57px; }
 
 .app-root {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-body);
@@ -33,7 +38,7 @@
 .topbar {
   position: sticky; top: 0; z-index: 40;
   display: flex; align-items: center; gap: 10px;
-  padding: 10px 20px;
+  height: var(--topbar-h); padding: 0 20px;
   background: color-mix(in srgb, var(--color-bg) 88%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--color-divider);
@@ -55,9 +60,12 @@
 .workspace {
   display: grid;
   grid-template-columns: 248px 336px minmax(0, 1fr);
-  height: calc(100vh - 57px);
+  height: calc(100vh - var(--topbar-h));
+  height: calc(100dvh - var(--topbar-h));
   min-height: 720px;
 }
+/* Drawer chrome and one-pane controls: hidden on the desktop grid. */
+.drawer-head, .nav-backdrop, .nav-btn, .pane-top { display: none; }
 
 /* ── workspace switcher (sidebar header) ─────────────────────────────── */
 .ws-wrap { position: relative; }
@@ -194,8 +202,8 @@
   display: flex; align-items: baseline; gap: 8px;
   padding: var(--space-4) var(--space-4) var(--space-3);
 }
-.notelist-head h4 { margin: 0; }
-.notelist-count { font-size: 12px; color: color-mix(in srgb, var(--color-text) 50%, transparent); }
+.notelist-head h4 { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notelist-count { flex: none; white-space: nowrap; font-size: 12px; color: color-mix(in srgb, var(--color-text) 50%, transparent); }
 .sortbtn {
   margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
   cursor: pointer; font: inherit; font-size: 12px; padding: 4px 10px;
@@ -430,7 +438,7 @@
 [data-theme="dark"] .revoke-btn:hover { border-color: #e07b5f; color: #e07b5f; }
 
 /* ── login ───────────────────────────────────────────────────────────── */
-.login-wrap { min-height: calc(100vh - 57px); display: grid; place-items: center; padding: var(--space-8); }
+.login-wrap { min-height: calc(100vh - var(--topbar-h)); min-height: calc(100dvh - var(--topbar-h)); display: grid; place-items: center; padding: var(--space-8); }
 .login-col { width: min(400px, 100%); display: flex; flex-direction: column; gap: var(--space-4); }
 .login-head { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; }
 .login-mark {
@@ -495,6 +503,7 @@
   padding: var(--space-4) var(--space-6) var(--space-3);
   border-bottom: 1px solid var(--color-divider);
 }
+.todo-head-sub { display: contents; }
 .todo-name {
   border: 0; padding: 2px 6px; margin: 0 0 0 -6px; background: transparent; color: inherit;
   font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 22px;
@@ -547,7 +556,7 @@
 }
 .avatar-xs { width: 18px; height: 18px; font-size: 9px; }
 .todo-assignee:not(.set) .avatar { background: color-mix(in srgb, var(--color-text) 12%, transparent); color: inherit; }
-.todo-due { padding-left: 10px; }
+.todo-due { padding-left: 10px; white-space: nowrap; }
 .todo-due.overdue { color: #a13b2a; border-color: color-mix(in srgb, #a13b2a 45%, transparent); }
 [data-theme="dark"] .todo-due.overdue { color: #e07b5f; border-color: color-mix(in srgb, #e07b5f 45%, transparent); }
 .todo-due.soon { color: var(--color-accent-700); border-color: color-mix(in srgb, var(--color-accent) 50%, transparent); }
@@ -630,22 +639,118 @@
 .setup-card code { font-family: ui-monospace, monospace; font-size: 13px; }
 
 /* ── responsive ──────────────────────────────────────────────────────── */
+
+/* Touch: nothing can hover, so hover-only affordances must always show. */
+@media (hover: none) {
+  .todo-x { opacity: .5; }
+  .kbd { display: none; }
+}
+
+/* Tablet and below: the sidebar becomes a drawer over the content. */
 @media (max-width: 1023px) {
   .workspace { grid-template-columns: 300px minmax(0, 1fr); }
-  .sidebar { display: none; }
-  .workspace.nav-open .sidebar {
-    display: flex; position: fixed; z-index: 60; inset: 57px auto 0 0; width: 264px;
+  .nav-btn { display: inline-flex; flex: none; width: 34px; height: 34px; }
+  .sidebar {
+    position: fixed; z-index: 60; top: 0; bottom: 0; left: 0;
+    width: min(300px, 86vw);
     box-shadow: var(--shadow-lg);
+    transform: translateX(-104%);
+    transition: transform .22s ease-out, visibility .22s;
+    visibility: hidden;
   }
+  .workspace.nav-open .sidebar { transform: none; visibility: visible; }
+  .nav-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 55;
+    background: color-mix(in srgb, var(--color-neutral-900) 45%, transparent);
+  }
+  .drawer-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: calc(var(--space-2) * -1) 0 calc(var(--space-2) * -1);
+  }
+  .drawer-head .topbar-brand { margin: 0 0 0 6px; }
+  .drawer-head .btn-icon { width: 34px; height: 34px; }
+  .kbd { display: none; }
   .notelist { border-left: 0; }
+  .notelist-head { align-items: center; padding-left: var(--space-3); padding-right: var(--space-3); }
+  .notelist-head h4 { flex: 1; }
   .todo-pane { grid-column: 1 / -1; border-left: 0; }
+  .todo-head { padding-left: var(--space-3); }
 }
+
+/* Phone: one pane at a time — list, or the open note, or the open todo list. */
 @media (max-width: 767px) {
-  .workspace { grid-template-columns: minmax(0, 1fr); }
+  :root { --topbar-h: 52px; }
+  .topbar { padding: 0 12px; }
+  .topbar-brand { margin-right: 0; }
+  .tab-pill { padding: 5px 11px; }
+  .theme-btn { width: 34px; height: 34px; padding: 0; }
+  .theme-btn span:not(.glyph) { display: none; }
+
+  .workspace { grid-template-columns: minmax(0, 1fr); min-height: 0; }
   .workspace.show-editor .notelist { display: none; }
   .workspace:not(.show-editor) .editor-pane { display: none; }
+
+  /* Back bar at the top of the open note. */
+  .pane-top {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px 8px 6px;
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .pane-top .saved-ind { margin-left: auto; font-size: 12px; }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 4px; min-width: 0;
+    cursor: pointer; font: inherit; font-size: 14px; font-weight: 600;
+    padding: 6px 12px 6px 6px; border: 0; border-radius: 999px;
+    background: transparent; color: var(--color-accent);
+  }
+  .back-btn:active { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+
   .editor-scroll { padding: var(--space-4); }
-  .editor-foot { padding: var(--space-3) var(--space-4); }
+  .editor-inner { gap: var(--space-3); }
+  .note-title-input { font-size: 26px; }
+  .md-edit { min-height: 240px; }
+  .editor-foot {
+    flex-wrap: wrap; row-gap: 6px; padding: var(--space-2) var(--space-4);
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+  }
+  .editor-foot > span:first-child { flex: 1 1 140px; min-width: 0; }
+  .editor-foot > .saved-ind { display: none; }
+  .editor-foot-right { flex: none; margin-left: auto; max-width: 100%; }
+  .editor-by, .claude-chip { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .note-menu { bottom: 34px; }
+
+  .notelist-head { padding: var(--space-3) var(--space-3) var(--space-2); }
+  .notelist-head h4 { font-size: 18px; }
+  .notes-scroll { padding: 0 var(--space-2) var(--space-4); }
+  .notecard { padding: var(--space-3) var(--space-3); }
+
+  /* Todo header: name + actions on one row, count + view switch on the next. */
+  .todo-head { flex-wrap: wrap; padding: var(--space-3) var(--space-3) var(--space-2); }
+  .todo-name { flex: 1; max-width: none; font-size: 20px; }
+  .todo-head-sub { display: flex; align-items: center; gap: 10px; flex-basis: 100%; order: 10; }
+  /* "Added by" and "Created" columns need a wider screen; sorting by them still applies. */
+  .todo-table th:nth-child(5), .todo-table td:nth-child(5),
+  .todo-table th:nth-child(6), .todo-table td:nth-child(6) { display: none; }
+  .todo-table .td-title { min-width: 160px; }
+  .todo-scroll { padding: var(--space-3) var(--space-3) var(--space-8); }
+  .todo-item { padding: 8px 6px; }
+  .todo-toolbar-note { flex-basis: 100%; margin-left: 0; }
+
+  .settings-page { padding: var(--space-4) var(--space-3) var(--space-8); }
+  .settings-inner { gap: var(--space-6); }
+  .card-row { flex-wrap: wrap; }
+  .mcp-card { padding: var(--space-4); }
+  .mcp-urlrow { flex-wrap: wrap; }
+  .mcp-url { flex-basis: 100%; }
+
+  .palette-backdrop { padding: var(--space-3); }
+  .palette-list { max-height: 55vh; }
+  .toast { left: var(--space-3); right: var(--space-3); justify-content: center; }
+  .ws-menu { z-index: 70; }
+
+  /* 16px stops iOS Safari zooming the page when a field gets focus. */
+  .input, .md-edit, .todo-add-input, .tag-add-input, .todo-title-input,
+  .pill-select, .todo-name, .palette-input { font-size: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

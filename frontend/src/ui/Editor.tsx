@@ -6,7 +6,7 @@ import { deleteNote, suggestTags, updateNote } from '../data/store'
 import { useAuth } from '../auth'
 import { Markdown } from './Markdown'
 import { ConfirmDialog } from './ConfirmDialog'
-import { ChevronDownIcon, PlusIcon } from './icons'
+import { ChevronDownIcon, ChevronLeftIcon, PlusIcon } from './icons'
 
 interface Props {
   wsId: string
@@ -16,9 +16,13 @@ interface Props {
   subjects: Subject[]
   onDeleted: () => void
   onToast: (msg: string) => void
+  /** Phone layout: the editor is its own screen; this returns to the list. */
+  onBack: () => void
+  /** Name of the list the back button returns to ("All notes", "#tag"…). */
+  backLabel: string
 }
 
-export function Editor({ wsId, shared, note, subjects, onDeleted, onToast }: Props) {
+export function Editor({ wsId, shared, note, subjects, onDeleted, onToast, onBack, backLabel }: Props) {
   const { profile } = useAuth()
   const [title, setTitle] = useState(note.title)
   const [body, setBody] = useState(note.body)
@@ -126,6 +130,16 @@ export function Editor({ wsId, shared, note, subjects, onDeleted, onToast }: Pro
 
   return (
     <section className="editor-pane">
+      <div className="pane-top">
+        <button className="back-btn" onClick={onBack}>
+          <ChevronLeftIcon />
+          {backLabel}
+        </button>
+        <span className="saved-ind">
+          <span className="pulse" />
+          {saving ? 'Saving…' : 'Saved'}
+        </span>
+      </div>
       <div className="editor-scroll">
         <div className="editor-inner">
           <input
