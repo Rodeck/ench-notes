@@ -144,10 +144,14 @@ class WorkspaceScope {
 }
 
 const listParam = z.string().describe('Todo list name or id (see list_todo_lists)')
-const assigneeParam = z
-  .string()
+const assigneesParam = z
+  .array(z.string())
   .optional()
-  .describe('Workspace member to assign, by display name or email; empty string to unassign')
+  .describe('Workspace members to assign, each by display name or email; an empty array unassigns everyone')
+const priorityParam = z
+  .enum(['high', 'medium', 'low', 'none'])
+  .optional()
+  .describe('Priority on a fixed scale; "none" clears it')
 const dueDateParam = z.string().optional().describe('Due date as YYYY-MM-DD; empty string to clear')
 
 /** Who is acting, for the "added by" fields: the member's display name. */
@@ -156,13 +160,17 @@ function actorFor(ctx: McpAuthContext, ws: WorkspaceDoc): Actor {
   return { uid: ctx.uid, name: m?.displayName || m?.email || 'Someone', client: ctx.clientName }
 }
 
-/** Assignee ref -> member; undefined when not given, null to clear. */
-function assigneeFor(ws: WorkspaceDoc, ref: string | undefined) {
-  if (ref === undefined) return undefined
-  if (!ref.trim()) return null
-  const found = resolveAssignee(ws, ref)
-  if (!found) throw new Error('assignee_not_found')
-  return found
+/** Assignee refs -> members; undefined when not given. Duplicates collapse. */
+function assigneesFor(ws: WorkspaceDoc, refs: string[] | undefined) {
+  if (refs === undefined) return undefined
+  const out = new Map<string, ReturnType<typeof resolveAssignee>>()
+  for (const ref of refs) {
+    if (!ref.trim()) continue
+    const found = resolveAssignee(ws, ref)
+    if (!found) throw new Error('assignee_not_found')
+    out.set(found.id, found)
+  }
+  return [...out.values()].filter((a): a is NonNullable<typeof a> => a !== null)
 }
 
 const listNotFound = (ref: string) =>
@@ -289,7 +297,7 @@ function buildServer(ctx: McpAuthContext): McpServer {
     'get_todo_list',
     {
       description:
-        'Fetch a todo list with its items: title, done, assignee, due date, who added it. ' +
+        'Fetch a todo list with its items: title, done, assignees, priority, due date, who added it. ' +
         'Open items come first (earliest due date first), then done ones. Also lists the workspace ' +
         'members who can be assignees. Table lists include shared_view (the filters and sort members ' +
         'see in the app); items are returned unfiltered regardless.',
@@ -338,23 +346,26 @@ function buildServer(ctx: McpAuthContext): McpServer {
       'add_todo_item',
       {
         description:
-          'Add an item to a todo list. Optionally assign it to a workspace member (see get_todo_list members) ' +
-          'and set a due date. The item records the user as "added by".',
+          'Add an item to a todo list. Optionally assign it to one or more workspace members ' +
+          '(see get_todo_list members), set a priority (high/medium/low) and a due date. ' +
+          'The item records the user as "added by".',
         inputSchema: {
           list: listParam,
           title: z.string().min(1),
-          assignee: assigneeParam,
+          assignees: assigneesParam,
+          priority: priorityParam,
           due_date: dueDateParam,
           workspace: workspaceParam,
         },
       },
-      async ({ list, title, assignee, due_date, workspace }) => {
+      async ({ list, title, assignees, priority, due_date, workspace }) => {
         const hit = await scope.locateList(list, workspace)
         if (!hit) return listNotFound(list)
         try {
           const item = await addItem(hit.ws.id, hit.list.id, actorFor(ctx, hit.ws), {
             title,
-            assignee: assigneeFor(hit.ws, assignee),
+            assignees: assigneesFor(hit.ws, assignees),
+            priority,
             dueDate: due_date,
           })
           return text(itemForLlm(item, hit.list, hit.ws))
@@ -368,26 +379,29 @@ function buildServer(ctx: McpAuthContext): McpServer {
       'update_todo_item',
       {
         description:
-          'Update a todo item: mark it done or not done, change the title, assignee, or due date. ' +
-          'Only pass the fields to change. Item ids come from get_todo_list; giving the list too is faster.',
+          'Update a todo item: mark it done or not done, change the title, assignees, priority, or due date. ' +
+          'Only pass the fields to change; assignees replaces the whole list. ' +
+          'Item ids come from get_todo_list; giving the list too is faster.',
         inputSchema: {
           item_id: z.string(),
           list: listParam.optional(),
           workspace: workspaceParam,
           title: z.string().min(1).optional(),
           done: z.boolean().optional(),
-          assignee: assigneeParam,
+          assignees: assigneesParam,
+          priority: priorityParam,
           due_date: dueDateParam,
         },
       },
-      async ({ item_id, list, workspace, title, done, assignee, due_date }) => {
+      async ({ item_id, list, workspace, title, done, assignees, priority, due_date }) => {
         const hit = await scope.locateItem(item_id, list, workspace)
         if (!hit) return text({ error: 'todo_item_not_found' })
         try {
           const item = await updateItem(hit.ws.id, hit.list.id, item_id, actorFor(ctx, hit.ws), {
             title,
             done,
-            assignee: assigneeFor(hit.ws, assignee),
+            assignees: assigneesFor(hit.ws, assignees),
+            priority,
             dueDate: due_date,
           })
           if (!item) return text({ error: 'todo_item_not_found' })

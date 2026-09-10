@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import type { TodoItem, TodoList, TodoSortField, TodoTableView } from '../data/types'
 import { deleteTodoItem, setTodoTableView, updateTodoItem } from '../data/store'
 import { applyView, isDefaultFilters, tableViewOf } from '../data/todoView'
-import { initials } from '../data/palette'
 import { shortDate } from '../data/time'
 import { dueLabel } from './TodoPane'
 import { SparkIcon } from './icons'
+import { AssigneePicker, PRIORITY_LABEL, PriorityPicker } from './TodoFields'
+import { TODO_PRIORITIES } from '../data/types'
 
 interface Props {
   wsId: string
@@ -18,7 +19,8 @@ interface Props {
 const COLUMNS: { field: TodoSortField; label: string }[] = [
   { field: 'done', label: '' },
   { field: 'title', label: 'Item' },
-  { field: 'assignee', label: 'Assignee' },
+  { field: 'assignee', label: 'Assignees' },
+  { field: 'priority', label: 'Priority' },
   { field: 'dueDate', label: 'Due' },
   { field: 'addedBy', label: 'Added by' },
   { field: 'createdAt', label: 'Created' },
@@ -71,6 +73,20 @@ export function TodoTable({ wsId, list, items, members, onToast }: Props) {
         </select>
         <select
           className="pill-select"
+          value={view.filters.priority}
+          onChange={(e) => void setFilters({ priority: e.target.value as TodoTableView['filters']['priority'] })}
+          aria-label="Filter by priority"
+        >
+          <option value="any">Any priority</option>
+          {TODO_PRIORITIES.map((p) => (
+            <option key={p} value={p}>
+              {PRIORITY_LABEL[p]}
+            </option>
+          ))}
+          <option value="none">No priority</option>
+        </select>
+        <select
+          className="pill-select"
           value={view.filters.due}
           onChange={(e) => void setFilters({ due: e.target.value as TodoTableView['filters']['due'] })}
           aria-label="Filter by due date"
@@ -98,7 +114,7 @@ export function TodoTable({ wsId, list, items, members, onToast }: Props) {
           <button
             className="btn btn-ghost"
             style={{ marginTop: 0 }}
-            onClick={() => void setFilters({ status: 'all', assigneeId: null, due: 'any', addedBy: null })}
+            onClick={() => void setFilters({ status: 'all', assigneeId: null, priority: 'any', due: 'any', addedBy: null })}
           >
             Clear
           </button>
@@ -201,24 +217,10 @@ function TableRow({ wsId, listId, item, members, onToast }: RowProps) {
         )}
       </td>
       <td>
-        <label className={`todo-assignee${item.assigneeId ? ' set' : ''}`} data-tip="Assignee">
-          <span className="avatar avatar-xs">{item.assigneeName ? initials(item.assigneeName) : '?'}</span>
-          <span>{item.assigneeName ?? 'Unassigned'}</span>
-          <select
-            value={item.assigneeId ?? ''}
-            onChange={(e) => {
-              const m = members.find((x) => x.uid === e.target.value)
-              void patch({ assigneeId: m?.uid ?? null, assigneeName: m?.name ?? null })
-            }}
-          >
-            <option value="">Unassigned</option>
-            {members.map((m) => (
-              <option key={m.uid} value={m.uid}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <AssigneePicker assignees={item.assignees} members={members} onChange={(assignees) => void patch({ assignees })} />
+      </td>
+      <td>
+        <PriorityPicker priority={item.priority} onChange={(priority) => void patch({ priority })} />
       </td>
       <td>
         <label className={`todo-due${due ? ` ${due.tone}` : ''}`} data-tip="Due date">

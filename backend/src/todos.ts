@@ -7,14 +7,20 @@ import type { WorkspaceDoc } from './workspaces.js'
    is a member of the workspace. MCP writes stamp origin: 'mcp'. */
 
 export type TodoListKind = 'list' | 'table'
-export type TodoSortField = 'title' | 'done' | 'assignee' | 'dueDate' | 'addedBy' | 'createdAt'
+export type TodoSortField = 'title' | 'done' | 'assignee' | 'priority' | 'dueDate' | 'addedBy' | 'createdAt'
+
+/** Fixed scale, unset by default (see frontend/src/data/types.ts). */
+export type TodoPriority = 'high' | 'medium' | 'low'
+export const TODO_PRIORITIES: TodoPriority[] = ['high', 'medium', 'low']
 
 /** Table settings, stored on the list doc and shared by every member. */
 export interface TodoTableView {
   sort: { field: TodoSortField; dir: 'asc' | 'desc' }
   filters: {
     status: 'all' | 'open' | 'done'
+    /** Member uid (among the item's assignees), 'none' for unassigned, null for any. */
     assigneeId: string | null
+    priority: 'any' | TodoPriority | 'none'
     due: 'any' | 'overdue' | 'today' | 'week' | 'none'
     addedBy: string | null
   }
@@ -22,7 +28,7 @@ export interface TodoTableView {
 
 export const DEFAULT_TABLE_VIEW: TodoTableView = {
   sort: { field: 'dueDate', dir: 'asc' },
-  filters: { status: 'all', assigneeId: null, due: 'any', addedBy: null },
+  filters: { status: 'all', assigneeId: null, priority: 'any', due: 'any', addedBy: null },
 }
 
 export interface TodoListDoc {
@@ -41,8 +47,9 @@ export interface TodoItemDoc {
   title: string
   done: boolean
   doneAt?: Timestamp | null
-  assigneeId: string | null
-  assigneeName: string | null
+  /** Members the item is assigned to; empty when unassigned. */
+  assignees: Assignee[]
+  priority: TodoPriority | null
   dueDate: string | null
   addedBy: string
   addedByName: string
@@ -50,6 +57,11 @@ export interface TodoItemDoc {
   updatedAt?: Timestamp
   origin?: string
   originClient?: string
+}
+
+export interface Assignee {
+  id: string
+  name: string
 }
 
 export interface Actor {
@@ -62,6 +74,15 @@ const listsCol = (wsId: string) => db().collection('workspaces').doc(wsId).colle
 const itemsCol = (wsId: string, listId: string) => listsCol(wsId).doc(listId).collection('items')
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Validate a priority; null for empty/"none", throws for anything else. */
+export function normalizePriority(v: string | null | undefined): TodoPriority | null {
+  if (v === undefined || v === null) return null
+  const p = v.trim().toLowerCase()
+  if (p === '' || p === 'none') return null
+  if (!(TODO_PRIORITIES as string[]).includes(p)) throw new Error('invalid_priority')
+  return p as TodoPriority
+}
 
 /** Validate a YYYY-MM-DD date; returns null for empty, throws for garbage. */
 export function normalizeDueDate(v: string | null | undefined): string | null {
@@ -119,11 +140,22 @@ export async function deleteTodoList(wsId: string, listId: string): Promise<bool
   return true
 }
 
+/** Item doc → TodoItemDoc. Items written before multiple assignees existed
+    carry assigneeId/assigneeName; read them as a one-element list. */
+function itemOf(id: string, d: Record<string, unknown>): TodoItemDoc {
+  const legacy = d.assigneeId ? [{ id: d.assigneeId as string, name: (d.assigneeName as string) ?? '' }] : []
+  return {
+    ...(d as Omit<TodoItemDoc, 'id' | 'assignees' | 'priority'>),
+    id,
+    assignees: Array.isArray(d.assignees) ? (d.assignees as Assignee[]) : legacy,
+    priority: (d.priority as TodoPriority | undefined) ?? null,
+  }
+}
+
 /** Items: open first (due date ascending, undated last), then done. */
 export async function listItems(wsId: string, listId: string): Promise<TodoItemDoc[]> {
   const snap = await itemsCol(wsId, listId).get()
-  const items = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TodoItemDoc, 'id'>) }))
-  return items.sort(compareItems)
+  return snap.docs.map((d) => itemOf(d.id, d.data())).sort(compareItems)
 }
 
 export function compareItems(a: TodoItemDoc, b: TodoItemDoc): number {
@@ -139,12 +171,7 @@ export function compareItems(a: TodoItemDoc, b: TodoItemDoc): number {
 export async function getItem(wsId: string, listId: string, itemId: string): Promise<TodoItemDoc | null> {
   const doc = await itemsCol(wsId, listId).doc(itemId).get()
   if (!doc.exists) return null
-  return { id: doc.id, ...(doc.data() as Omit<TodoItemDoc, 'id'>) }
-}
-
-export interface Assignee {
-  id: string
-  name: string
+  return itemOf(doc.id, doc.data()!)
 }
 
 /** Resolve a member by uid, display name, or email (case-insensitive). */
@@ -163,14 +190,14 @@ export async function addItem(
   wsId: string,
   listId: string,
   actor: Actor,
-  data: { title: string; assignee?: Assignee | null; dueDate?: string | null },
+  data: { title: string; assignees?: Assignee[]; priority?: string | null; dueDate?: string | null },
 ): Promise<TodoItemDoc> {
   const ref = await itemsCol(wsId, listId).add({
     title: data.title.trim(),
     done: false,
     doneAt: null,
-    assigneeId: data.assignee?.id ?? null,
-    assigneeName: data.assignee?.name ?? null,
+    assignees: data.assignees ?? [],
+    priority: normalizePriority(data.priority),
     dueDate: normalizeDueDate(data.dueDate),
     addedBy: actor.uid,
     addedByName: actor.name,
@@ -187,7 +214,7 @@ export async function updateItem(
   listId: string,
   itemId: string,
   actor: Actor,
-  patch: { title?: string; done?: boolean; assignee?: Assignee | null; dueDate?: string | null },
+  patch: { title?: string; done?: boolean; assignees?: Assignee[]; priority?: string | null; dueDate?: string | null },
 ): Promise<TodoItemDoc | null> {
   const existing = await getItem(wsId, listId, itemId)
   if (!existing) return null
@@ -201,10 +228,13 @@ export async function updateItem(
     update.done = patch.done
     update.doneAt = patch.done ? FieldValue.serverTimestamp() : null
   }
-  if (patch.assignee !== undefined) {
-    update.assigneeId = patch.assignee?.id ?? null
-    update.assigneeName = patch.assignee?.name ?? null
+  if (patch.assignees !== undefined) {
+    update.assignees = patch.assignees
+    // Drop the pre-multi-assignee fields once the new list is written.
+    update.assigneeId = FieldValue.delete()
+    update.assigneeName = FieldValue.delete()
   }
+  if (patch.priority !== undefined) update.priority = normalizePriority(patch.priority)
   if (patch.dueDate !== undefined) update.dueDate = normalizeDueDate(patch.dueDate)
   await itemsCol(wsId, listId).doc(itemId).update(update)
   return getItem(wsId, listId, itemId)
@@ -226,7 +256,8 @@ export function itemForLlm(i: TodoItemDoc, list: TodoListDoc, workspace: { id: s
     workspace_id: workspace.id,
     title: i.title,
     done: i.done,
-    assignee: i.assigneeName,
+    assignees: i.assignees.map((a) => a.name),
+    priority: i.priority,
     due_date: i.dueDate,
     added_by: i.addedByName,
     createdAt: i.createdAt?.toDate().toISOString() ?? null,
@@ -244,6 +275,7 @@ export function tableViewForLlm(l: TodoListDoc, ws: WorkspaceDoc) {
     filters: {
       status: f.status,
       assignee: f.assigneeId === 'none' ? 'unassigned' : name(f.assigneeId) ?? 'any',
+      priority: f.priority,
       due: f.due,
       added_by: name(f.addedBy) ?? 'any',
     },

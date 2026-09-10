@@ -145,9 +145,9 @@ const listRef = db().collection('workspaces').doc(ws).collection('todoLists').do
 await listRef.set({ name: 'Weekend', createdAt: now(), createdBy: alice.uid, createdByName: alice.displayName }, { merge: true })
 const todayIso = new Date().toISOString().slice(0, 10)
 const seedItems: Array<[string, Record<string, unknown>]> = [
-  ['buy-flowers', { title: 'Buy flowers for grandma', done: false, assigneeId: bob.uid, assigneeName: bob.displayName, dueDate: todayIso, addedBy: alice.uid, addedByName: alice.displayName }],
-  ['book-table', { title: 'Book a table for Saturday', done: false, assigneeId: alice.uid, assigneeName: alice.displayName, dueDate: null, addedBy: bob.uid, addedByName: bob.displayName }],
-  ['return-library', { title: 'Return library books', done: true, assigneeId: null, assigneeName: null, dueDate: null, addedBy: alice.uid, addedByName: alice.displayName }],
+  ['buy-flowers', { title: 'Buy flowers for grandma', done: false, assignees: [{ id: bob.uid, name: bob.displayName }, { id: alice.uid, name: alice.displayName }], priority: 'high', dueDate: todayIso, addedBy: alice.uid, addedByName: alice.displayName }],
+  ['book-table', { title: 'Book a table for Saturday', done: false, assignees: [{ id: alice.uid, name: alice.displayName }], dueDate: null, addedBy: bob.uid, addedByName: bob.displayName }],
+  ['return-library', { title: 'Return library books', done: true, assignees: [], dueDate: null, addedBy: alice.uid, addedByName: alice.displayName }],
 ]
 for (const [id, data] of seedItems) {
   await listRef.collection('items').doc(id).set(
@@ -162,7 +162,7 @@ await choresRef.set(
   {
     name: 'Chores',
     kind: 'table',
-    table: { sort: { field: 'dueDate', dir: 'asc' }, filters: { status: 'open', assigneeId: null, due: 'any', addedBy: null } },
+    table: { sort: { field: 'dueDate', dir: 'asc' }, filters: { status: 'open', assigneeId: null, priority: 'any', due: 'any', addedBy: null } },
     createdAt: now(),
     createdBy: bob.uid,
     createdByName: bob.displayName,
@@ -170,11 +170,11 @@ await choresRef.set(
   { merge: true },
 )
 const chores: Array<[string, Record<string, unknown>]> = [
-  ['vacuum', { title: 'Vacuum the living room', done: false, assigneeId: bob.uid, assigneeName: bob.displayName, dueDate: todayIso, addedBy: alice.uid, addedByName: alice.displayName }],
-  ['laundry', { title: 'Laundry', done: false, assigneeId: alice.uid, assigneeName: alice.displayName, dueDate: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), addedBy: bob.uid, addedByName: bob.displayName }],
-  ['bins', { title: 'Take the bins out', done: false, assigneeId: null, assigneeName: null, dueDate: new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10), addedBy: alice.uid, addedByName: alice.displayName }],
-  ['plants', { title: 'Water the plants', done: true, assigneeId: bob.uid, assigneeName: bob.displayName, dueDate: null, addedBy: bob.uid, addedByName: bob.displayName }],
-  ['garage', { title: 'Sort out the garage', done: false, assigneeId: null, assigneeName: null, dueDate: null, addedBy: bob.uid, addedByName: bob.displayName }],
+  ['vacuum', { title: 'Vacuum the living room', done: false, assignees: [{ id: bob.uid, name: bob.displayName }], priority: 'medium', dueDate: todayIso, addedBy: alice.uid, addedByName: alice.displayName }],
+  ['laundry', { title: 'Laundry', done: false, assignees: [{ id: alice.uid, name: alice.displayName }], dueDate: new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10), addedBy: bob.uid, addedByName: bob.displayName }],
+  ['bins', { title: 'Take the bins out', done: false, assignees: [], priority: 'high', dueDate: new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10), addedBy: alice.uid, addedByName: alice.displayName }],
+  ['plants', { title: 'Water the plants', done: true, assignees: [{ id: bob.uid, name: bob.displayName }], dueDate: null, addedBy: bob.uid, addedByName: bob.displayName }],
+  ['garage', { title: 'Sort out the garage', done: false, assignees: [{ id: alice.uid, name: alice.displayName }, { id: bob.uid, name: bob.displayName }], priority: 'low', dueDate: null, addedBy: bob.uid, addedByName: bob.displayName }],
 ]
 for (const [id, data] of chores) {
   await choresRef.collection('items').doc(id).set(

@@ -13,7 +13,8 @@ them; reads default to all of them, writes to the personal one. Notes
 (`search_notes`, `get_note`, `create_note`, …) and todo lists
 (`list_todo_lists`, `get_todo_list`, `add_todo_item`, `update_todo_item`, …)
 follow the same rules; todo lists and items are matched by id or name, and
-assignees by member display name or email. Table lists (`kind: "table"`)
+assignees (any number per item) by member display name or email; `priority` is
+`high`, `medium`, `low`, or `none` to clear. Table lists (`kind: "table"`)
 carry a `shared_view` (the sort and filters every member sees in the app);
 API results are never filtered by it.
 
