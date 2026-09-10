@@ -10,9 +10,9 @@ import {
   useTodoItems,
 } from '../data/store'
 import { TodoTable } from './TodoTable'
-import { initials } from '../data/palette'
 import { agoTime } from '../data/time'
 import { ConfirmDialog } from './ConfirmDialog'
+import { AssigneePicker, PriorityPicker } from './TodoFields'
 import { MenuIcon, PlusIcon, SparkIcon } from './icons'
 
 interface Props {
@@ -242,11 +242,6 @@ function TodoRow({ wsId, listId, item, members, onToast }: RowProps) {
     if (next !== item.title) await patch({ title: next })
   }
 
-  function setAssignee(uid: string) {
-    const m = members.find((x) => x.uid === uid)
-    void patch({ assigneeId: m?.uid ?? null, assigneeName: m?.name ?? null })
-  }
-
   const due = item.dueDate ? dueLabel(item.dueDate, item.done) : null
 
   return (
@@ -280,18 +275,8 @@ function TodoRow({ wsId, listId, item, members, onToast }: RowProps) {
           </button>
         )}
         <div className="todo-meta">
-          <label className={`todo-assignee${item.assigneeId ? ' set' : ''}`} data-tip="Assignee">
-            <span className="avatar avatar-xs">{item.assigneeName ? initials(item.assigneeName) : '?'}</span>
-            <span>{item.assigneeName ?? 'Unassigned'}</span>
-            <select value={item.assigneeId ?? ''} onChange={(e) => setAssignee(e.target.value)}>
-              <option value="">Unassigned</option>
-              {members.map((m) => (
-                <option key={m.uid} value={m.uid}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <AssigneePicker assignees={item.assignees} members={members} onChange={(assignees) => void patch({ assignees })} />
+          <PriorityPicker priority={item.priority} onChange={(priority) => void patch({ priority })} />
           <label className={`todo-due${due ? ` ${due.tone}` : ''}`} data-tip="Due date">
             <span>{due ? due.text : 'No date'}</span>
             <input

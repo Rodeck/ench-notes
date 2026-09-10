@@ -176,7 +176,7 @@ await t('create_todo_list kind=table exposes shared_view with defaults', async (
   // Simulate the app storing a shared filter; MCP reflects it with member names.
   await sharedRef.collection('todoLists').doc(r.id).update({ 'table.filters.status': 'open', 'table.filters.assigneeId': a.uid, 'table.sort': { field: 'title', dir: 'desc' } })
   const g = await call('get_todo_list', { list: 'Board' })
-  expect(g.shared_view.filters.status === 'open' && g.shared_view.filters.assignee === 'Alice' && g.shared_view.sort === 'title desc', JSON.stringify(g.shared_view))
+  expect(g.shared_view.filters.status === 'open' && g.shared_view.filters.assignee === 'Alice' && g.shared_view.filters.priority === 'any' && g.shared_view.sort === 'title desc', JSON.stringify(g.shared_view))
   await call('delete_todo_list', { list: 'Board', workspace: 'Team' })
 })
 await t('create_todo_list without workspace -> default', async () => {
@@ -184,14 +184,18 @@ await t('create_todo_list without workspace -> default', async () => {
   expect(r.workspace_id === b.uid && r.kind === 'list' && r.shared_view === undefined, JSON.stringify(r))
 })
 let itemId = ''
-await t('add_todo_item with assignee by name + due date, added_by = Bob', async () => {
-  const r = await call('add_todo_item', { list: 'chores', title: 'Dishes', assignee: 'alice', due_date: '2026-09-10' })
-  expect(r.assignee === 'Alice' && r.due_date === '2026-09-10' && r.added_by === 'Bob' && r.done === false && r.list === 'Chores', JSON.stringify(r))
+await t('add_todo_item with two assignees (name + email, duplicate collapsed), priority, due date, added_by = Bob', async () => {
+  const r = await call('add_todo_item', { list: 'chores', title: 'Dishes', assignees: ['alice', 'bob@x.com', 'Alice'], priority: 'high', due_date: '2026-09-10' })
+  expect(JSON.stringify(r.assignees) === '["Alice","Bob"]' && r.priority === 'high' && r.due_date === '2026-09-10' && r.added_by === 'Bob' && r.done === false && r.list === 'Chores', JSON.stringify(r))
   itemId = r.id
 })
 await t('add_todo_item rejects unknown assignee', async () => {
-  const r = await call('add_todo_item', { list: 'Chores', title: 'x', assignee: 'nobody' })
+  const r = await call('add_todo_item', { list: 'Chores', title: 'x', assignees: ['nobody'] })
   expect(r.error === 'assignee_not_found', JSON.stringify(r))
+})
+await t('add_todo_item rejects unknown priority at the schema', async () => {
+  const res = await client.callTool({ name: 'add_todo_item', arguments: { list: 'Chores', title: 'x', priority: 'urgent' } })
+  expect(res.isError === true, JSON.stringify(res.content))
 })
 await t('add_todo_item rejects bad date', async () => {
   const r = await call('add_todo_item', { list: 'Chores', title: 'x', due_date: 'next tuesday' })
@@ -206,12 +210,12 @@ await t('list_todo_lists across workspaces with counts', async () => {
   const chores = r.find((l: any) => l.name === 'Chores')
   expect(r.length === 2 && chores.open === 1 && chores.done === 0, JSON.stringify(r))
 })
-await t('update_todo_item by id only: done + unassign + clear date', async () => {
-  const r = await call('update_todo_item', { item_id: itemId, done: true, assignee: '', due_date: '' })
-  expect(r.done === true && r.assignee === null && r.due_date === null && r.doneAt, JSON.stringify(r))
+await t('update_todo_item by id only: done + unassign all + clear priority + clear date', async () => {
+  const r = await call('update_todo_item', { item_id: itemId, done: true, assignees: [], priority: 'none', due_date: '' })
+  expect(r.done === true && r.assignees.length === 0 && r.priority === null && r.due_date === null && r.doneAt, JSON.stringify(r))
 })
 await t('get_todo_list shows members and done item last; include_done=false hides it', async () => {
-  await call('add_todo_item', { list: 'Chores', title: 'Vacuum', assignee: 'bob@x.com', workspace: sharedRef.id })
+  await call('add_todo_item', { list: 'Chores', title: 'Vacuum', assignees: ['bob@x.com'], workspace: sharedRef.id })
   const full = await call('get_todo_list', { list: 'Chores' })
   expect(full.items.length === 2 && full.items[0].title === 'Vacuum' && full.items[1].done === true, JSON.stringify(full.items))
   expect(full.members.includes('Alice') && full.members.includes('Bob'), JSON.stringify(full.members))

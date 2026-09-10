@@ -1,4 +1,4 @@
-import type { TodoItem, TodoList, TodoSortField, TodoTableView } from './types'
+import type { TodoItem, TodoList, TodoPriority, TodoSortField, TodoTableView } from './types'
 
 /* Table view helpers. The view (kind, sort, filters) is stored on the list
    document so it is shared: when one member filters by "overdue", everyone
@@ -6,7 +6,15 @@ import type { TodoItem, TodoList, TodoSortField, TodoTableView } from './types'
 
 export const DEFAULT_TABLE_VIEW: TodoTableView = {
   sort: { field: 'dueDate', dir: 'asc' },
-  filters: { status: 'all', assigneeId: null, due: 'any', addedBy: null },
+  filters: { status: 'all', assigneeId: null, priority: 'any', due: 'any', addedBy: null },
+}
+
+/** Sort rank; unset sinks below low. */
+export const PRIORITY_RANK: Record<TodoPriority, number> = { high: 3, medium: 2, low: 1 }
+
+/** Names of the people an item is assigned to, for display and sorting. */
+export function assigneeNames(item: TodoItem): string {
+  return item.assignees.map((a) => a.name).join(', ')
 }
 
 export function tableViewOf(list: TodoList): TodoTableView {
@@ -18,7 +26,7 @@ export function tableViewOf(list: TodoList): TodoTableView {
 
 export function isDefaultFilters(view: TodoTableView): boolean {
   const f = view.filters
-  return f.status === 'all' && !f.assigneeId && f.due === 'any' && !f.addedBy
+  return f.status === 'all' && !f.assigneeId && f.priority === 'any' && f.due === 'any' && !f.addedBy
 }
 
 /** Local calendar date as YYYY-MM-DD, offset by `days`. */
@@ -32,7 +40,9 @@ export function matchesFilters(item: TodoItem, view: TodoTableView): boolean {
   const f = view.filters
   if (f.status === 'open' && item.done) return false
   if (f.status === 'done' && !item.done) return false
-  if (f.assigneeId === 'none' ? item.assigneeId : f.assigneeId && item.assigneeId !== f.assigneeId) return false
+  if (f.assigneeId === 'none' && item.assignees.length > 0) return false
+  if (f.assigneeId && f.assigneeId !== 'none' && !item.assignees.some((a) => a.id === f.assigneeId)) return false
+  if (f.priority === 'none' ? item.priority : f.priority !== 'any' && item.priority !== f.priority) return false
   if (f.addedBy && item.addedBy !== f.addedBy) return false
   const today = dateKey()
   switch (f.due) {
@@ -61,7 +71,9 @@ function keyOf(item: TodoItem, field: TodoSortField): string | number | null {
     case 'done':
       return item.done ? 1 : 0
     case 'assignee':
-      return item.assigneeName
+      return assigneeNames(item)
+    case 'priority':
+      return item.priority ? PRIORITY_RANK[item.priority] : null
     case 'dueDate':
       return item.dueDate
     case 'addedBy':

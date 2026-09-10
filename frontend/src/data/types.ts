@@ -65,15 +65,22 @@ export interface McpClient {
 /** A todo list inside a workspace. Items live in a subcollection so several
     members can edit at the same time without overwriting each other. */
 export type TodoListKind = 'list' | 'table'
-export type TodoSortField = 'title' | 'done' | 'assignee' | 'dueDate' | 'addedBy' | 'createdAt'
+export type TodoSortField = 'title' | 'done' | 'assignee' | 'priority' | 'dueDate' | 'addedBy' | 'createdAt'
+
+/** Fixed scale, unset by default: readable as a chip, sortable, and easy
+    for an assistant to set without guessing what a number means. */
+export type TodoPriority = 'high' | 'medium' | 'low'
+export const TODO_PRIORITIES: TodoPriority[] = ['high', 'medium', 'low']
 
 /** Table settings, stored on the list doc so every member shares them. */
 export interface TodoTableView {
   sort: { field: TodoSortField; dir: 'asc' | 'desc' }
   filters: {
     status: 'all' | 'open' | 'done'
-    /** Member uid, 'none' for unassigned, null for any. */
+    /** Member uid (item has them among its assignees), 'none' for
+        unassigned, null for any. */
     assigneeId: string | null
+    priority: 'any' | TodoPriority | 'none'
     due: 'any' | 'overdue' | 'today' | 'week' | 'none'
     /** Member uid or null for any. */
     addedBy: string | null
@@ -91,14 +98,19 @@ export interface TodoList {
   createdByName: string
 }
 
+export interface TodoAssignee {
+  id: string
+  name: string
+}
+
 export interface TodoItem {
   id: string
   title: string
   done: boolean
   doneAt: Timestamp | null
-  /** Workspace member uid, or null when unassigned. */
-  assigneeId: string | null
-  assigneeName: string | null
+  /** Workspace members the item is assigned to; empty when unassigned. */
+  assignees: TodoAssignee[]
+  priority: TodoPriority | null
   /** Calendar date as YYYY-MM-DD (no time zone), or null. */
   dueDate: string | null
   addedBy: string

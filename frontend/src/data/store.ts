@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -18,7 +19,18 @@ import {
 import type { User } from 'firebase/auth'
 import { db, BACKEND_URL } from '../firebase'
 import { auth } from '../firebase'
-import type { McpClient, Note, Subject, TodoItem, TodoList, TodoListKind, TodoTableView, Workspace } from './types'
+import type {
+  McpClient,
+  Note,
+  Subject,
+  TodoAssignee,
+  TodoItem,
+  TodoList,
+  TodoListKind,
+  TodoPriority,
+  TodoTableView,
+  Workspace,
+} from './types'
 
 /* Notes and subjects live under workspaces/{wsId}. Every member of a
    workspace can read and write them (Firestore rules check memberIds).
@@ -189,6 +201,18 @@ export function useTodoLists(wsId: string) {
   return lists
 }
 
+/** Item doc → TodoItem. Items written before multiple assignees existed
+    carry assigneeId/assigneeName; read them as a one-element list. */
+export function todoItemOf(id: string, d: Record<string, unknown>): TodoItem {
+  const legacy = d.assigneeId ? [{ id: d.assigneeId as string, name: (d.assigneeName as string) ?? '' }] : []
+  return {
+    ...(d as Omit<TodoItem, 'id' | 'assignees' | 'priority'>),
+    id,
+    assignees: Array.isArray(d.assignees) ? (d.assignees as TodoAssignee[]) : legacy,
+    priority: (d.priority as TodoPriority | undefined) ?? null,
+  }
+}
+
 /** Open items first (earliest due date first, undated last), then done. */
 export function compareTodoItems(a: TodoItem, b: TodoItem): number {
   if (a.done !== b.done) return a.done ? 1 : -1
@@ -206,7 +230,7 @@ export function useTodoItems(wsId: string, listId: string) {
     setItems(null)
     return onSnapshot(
       todoItemsCol(wsId, listId),
-      (snap) => setItems(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TodoItem).sort(compareTodoItems)),
+      (snap) => setItems(snap.docs.map((d) => todoItemOf(d.id, d.data())).sort(compareTodoItems)),
       (err) => {
         console.error('todo items listener', err)
         setItems([])
@@ -262,15 +286,15 @@ export async function deleteTodoList(wsId: string, listId: string) {
 export async function addTodoItem(
   wsId: string,
   listId: string,
-  data: { title: string; assigneeId?: string | null; assigneeName?: string | null; dueDate?: string | null },
+  data: { title: string; assignees?: TodoAssignee[]; priority?: TodoPriority | null; dueDate?: string | null },
 ): Promise<string> {
   const u = auth().currentUser
   const ref = await addDoc(todoItemsCol(wsId, listId), {
     title: data.title.trim(),
     done: false,
     doneAt: null,
-    assigneeId: data.assigneeId ?? null,
-    assigneeName: data.assigneeName ?? null,
+    assignees: data.assignees ?? [],
+    priority: data.priority ?? null,
     dueDate: data.dueDate || null,
     addedBy: u?.uid ?? '',
     addedByName: editorName(),
@@ -285,11 +309,13 @@ export async function updateTodoItem(
   wsId: string,
   listId: string,
   itemId: string,
-  patch: Partial<Pick<TodoItem, 'title' | 'done' | 'assigneeId' | 'assigneeName' | 'dueDate'>>,
+  patch: Partial<Pick<TodoItem, 'title' | 'done' | 'assignees' | 'priority' | 'dueDate'>>,
 ) {
   await updateDoc(doc(db(), 'workspaces', wsId, 'todoLists', listId, 'items', itemId), {
     ...patch,
     ...(patch.done !== undefined ? { doneAt: patch.done ? serverTimestamp() : null } : {}),
+    // Drop the pre-multi-assignee fields once the new list is written.
+    ...(patch.assignees !== undefined ? { assigneeId: deleteField(), assigneeName: deleteField() } : {}),
     updatedAt: serverTimestamp(),
     origin: 'user',
   })

@@ -539,19 +539,35 @@ button, a, label, [role="button"] { touch-action: manipulation; -webkit-tap-high
   border: 0; border-bottom: 1px solid var(--color-accent); background: transparent; outline: none; padding: 0;
 }
 .todo-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; font-size: 12px; }
-.todo-assignee, .todo-due {
+.todo-assignee, .todo-due, .todo-prio {
   position: relative; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   padding: 2px 10px 2px 3px; border-radius: 999px; border: 1px solid var(--color-divider);
+  background: transparent; font: inherit; font-size: 12px; white-space: nowrap;
   color: color-mix(in srgb, var(--color-text) 65%, transparent);
 }
-.todo-assignee:hover, .todo-due:hover { border-color: var(--color-accent); color: var(--color-text); }
+.todo-assignee:hover, .todo-due:hover, .todo-prio:hover { border-color: var(--color-accent); color: var(--color-text); }
 .todo-assignee.set { color: var(--color-text); }
-.todo-assignee select, .todo-due input {
+.todo-prio select, .todo-due input {
   position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer;
 }
 .avatar-xs { width: 18px; height: 18px; font-size: 9px; }
 .todo-assignee:not(.set) .avatar { background: color-mix(in srgb, var(--color-text) 12%, transparent); color: inherit; }
-.todo-due { padding-left: 10px; white-space: nowrap; }
+.avatar-stack { display: inline-flex; }
+.avatar-stack .avatar + .avatar { margin-left: -6px; box-shadow: 0 0 0 1.5px var(--color-bg); }
+.assignee-wrap { position: relative; display: inline-flex; }
+.assignee-menu { position: fixed; bottom: auto; right: auto; min-width: 200px; z-index: 80; }
+.assignee-menu button { display: flex; align-items: center; gap: 8px; }
+.assignee-menu button.on { font-weight: 600; }
+.assignee-menu .check { width: 14px; text-align: right; color: var(--color-accent); }
+.todo-due { padding-left: 10px; }
+.todo-prio { padding-left: 8px; }
+.prio-flag { font-weight: 700; width: 12px; text-align: center; letter-spacing: -.05em; }
+.todo-prio.high { color: #a13b2a; border-color: color-mix(in srgb, #a13b2a 45%, transparent); }
+.todo-prio.medium { color: var(--color-accent-700); border-color: color-mix(in srgb, var(--color-accent) 50%, transparent); }
+.todo-prio.low { color: var(--color-accent-2-700); border-color: color-mix(in srgb, var(--color-accent-2) 50%, transparent); }
+[data-theme="dark"] .todo-prio.high { color: #e07b5f; border-color: color-mix(in srgb, #e07b5f 45%, transparent); }
+[data-theme="dark"] .todo-prio.medium { color: var(--color-accent-400); }
+[data-theme="dark"] .todo-prio.low { color: var(--color-accent-2-400); }
 .todo-due.overdue { color: #a13b2a; border-color: color-mix(in srgb, #a13b2a 45%, transparent); }
 [data-theme="dark"] .todo-due.overdue { color: #e07b5f; border-color: color-mix(in srgb, #e07b5f 45%, transparent); }
 .todo-due.soon { color: var(--color-accent-700); border-color: color-mix(in srgb, var(--color-accent) 50%, transparent); }
@@ -724,8 +740,8 @@ button, a, label, [role="button"] { touch-action: manipulation; -webkit-tap-high
   .todo-name { flex: 1; max-width: none; font-size: 20px; }
   .todo-head-sub { display: flex; align-items: center; gap: 10px; flex-basis: 100%; order: 10; }
   /* "Added by" and "Created" columns need a wider screen; sorting by them still applies. */
-  .todo-table th:nth-child(5), .todo-table td:nth-child(5),
-  .todo-table th:nth-child(6), .todo-table td:nth-child(6) { display: none; }
+  .todo-table th:nth-child(6), .todo-table td:nth-child(6),
+  .todo-table th:nth-child(7), .todo-table td:nth-child(7) { display: none; }
   .todo-table .td-title { min-width: 160px; }
   .todo-scroll { padding: var(--space-3) var(--space-3) var(--space-8); }
   .todo-item { padding: 8px 6px; }
